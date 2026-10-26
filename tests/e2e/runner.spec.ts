@@ -6,7 +6,8 @@ import path from "node:path";
 import config from "../../faultlane.config";
 import { runFaultLane } from "../../src/runner/browser";
 import { defineConfig } from "../../src/runner/config";
-import { exitCode, runResultSchema } from "../../src/runner/results";
+import { exitCode, runResultSchema, summarize } from "../../src/runner/results";
+import { listReports } from "../../src/lib/report-store";
 
 const exec = promisify(execFile);
 const cli = path.resolve("src/runner/cli.ts");
@@ -74,7 +75,25 @@ test("results dashboard serves reports, validates paths and fits mobile", async 
   const jsonLink = page.getByRole("link", { name: "JSON ↓" }).first();
   const jsonResponse = await request.get((await jsonLink.getAttribute("href"))!);
   expect(jsonResponse.status()).toBe(200);
-  expect(runResultSchema.safeParse(await jsonResponse.json()).success).toBe(true);
+  const latest = runResultSchema.parse(await jsonResponse.json());
+  const latestCounts = summarize(latest.results);
+  const latestPanel = page.getByTestId("latest-run");
+  await expect(latestPanel).toContainText(latest.id);
+  await expect(latestPanel).toContainText(`${latestCounts.pass} PASS`);
+  await expect(latestPanel).toContainText(`${latestCounts.fail} FAIL`);
+  await expect(latestPanel).toContainText(`${latestCounts.error} ERROR`);
+  const { runs } = await listReports(config.reportsDir);
+  expect(runs[0]?.id).toBe(latest.id);
+  const history = summarize(runs.slice(1).flatMap((run) => run.results));
+  const historyPanel = page.getByTestId("historical-totals");
+  await expect(historyPanel.locator("section").filter({ hasText: "Historical passes" }).locator(".value")).toHaveText(String(history.pass));
+  await expect(historyPanel.locator("section").filter({ hasText: "Historical errors" }).locator(".value")).toHaveText(String(history.error));
+  const step = latest.results.flatMap((result) => result.steps ?? []).find((entry) => entry.screenshot);
+  if (step?.screenshot) {
+    const evidence = await request.get(`/api/reports/${latest.id}/${step.screenshot}`);
+    expect(evidence.status()).toBe(200);
+    expect(evidence.headers()["content-type"]).toBe("image/png");
+  }
   const screenshotLink = page.getByRole("link", { name: "Open browser evidence ↗" }).first();
   const shot = await request.get((await screenshotLink.getAttribute("href"))!);
   expect(shot.headers()["content-type"]).toBe("image/png");

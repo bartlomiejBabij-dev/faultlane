@@ -1,6 +1,6 @@
 {
   "name": "faultlane",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -11,11 +11,17 @@
     "build": "next build",
     "start": "next start --hostname 127.0.0.1",
     "faultlane": "tsx src/runner/cli.ts",
+    "demo:click": "npm run faultlane -- run --config faultlane.click.config.ts",
+    "demo:recovery": "npm run faultlane -- run --config faultlane.recovery.config.ts",
+    "demo:broken-recovery": "npm run faultlane -- run --config faultlane.recovery-broken.config.ts",
+    "fixture:start": "tsx examples/catalog/start.ts",
+    "fixture:test": "npm run faultlane -- run --config faultlane.catalog.config.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "verify": "npm run typecheck && npm run lint && npm test && npm run test:e2e",
+    "test:journeys": "playwright test tests/e2e/journey.spec.ts",
+    "verify": "npm run typecheck && npm run lint && npm test && npm run test:e2e && npm run build",
     "browsers:install": "playwright install chromium"
   },
   "dependencies": {

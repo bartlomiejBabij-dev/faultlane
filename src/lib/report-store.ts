@@ -1,15 +1,14 @@
 import { open, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
-import { runIdPattern, runResultSchema, type RunResult } from "../runner/results";
+import { evidencePattern, runIdPattern, runResultSchema, type RunResult } from "../runner/results";
 
-const allowedFile = /^(results\.json|report\.md|(baseline|http-500|http-429|slow|network|empty)(-failure)?\.png|slow-loading\.png)$/;
 function inside(root: string, candidate: string): boolean {
   const relative = path.relative(root, candidate);
   return relative !== "" && relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
 }
 
 export async function readReportFile(root: string, runId: string, filename: string): Promise<Buffer> {
-  if (!runIdPattern.test(runId) || !allowedFile.test(filename)) throw new Error("Invalid report path");
+  if (!runIdPattern.test(runId) || !(filename === "results.json" || filename === "report.md" || evidencePattern.test(filename))) throw new Error("Invalid report path");
   const canonicalRoot = await realpath(path.resolve(root));
   const canonicalRun = await realpath(path.join(canonicalRoot, runId));
   const candidate = await realpath(path.join(canonicalRun, filename));

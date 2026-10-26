@@ -27,7 +27,7 @@ async function main() {
     return 2;
   }
   try {
-    const { run, directory } = await runFaultLane(config, { only: args.values.scenario, onResult: (result) => console.log(`${result.status.padEnd(5)} ${result.id.padEnd(10)} ${result.durationMs} ms · intercepted ${result.interceptedRequests}\n      ${result.observation}`) });
+    const { run, directory } = await runFaultLane(config, { only: args.values.scenario, onResult: (result) => console.log(`${result.status.padEnd(5)} ${result.id.padEnd(10)} ${result.durationMs} ms · observed ${result.observedRequests} / intercepted ${result.interceptedRequests} / faulted ${result.faultedRequests}\n      ${result.code ? `[${result.code}] ` : ""}${result.observation}${result.failedStep ? ` (step ${result.failedStep})` : ""}`) });
     const counts = summarize(run.results);
     console.log(`\n${counts.pass} PASS / ${counts.fail} FAIL / ${counts.error} ERROR\nReport: ${directory}`);
     return exitCode(run.results);

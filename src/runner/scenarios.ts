@@ -32,13 +32,14 @@ export async function forwardLocal(route: Route, timeout: number) {
       throw new Error("Redirect blocked; configure the final local URL directly");
     }
     await route.fulfill({ response });
+    return response.status();
   } finally { await response.dispose(); }
 }
 
 export async function simulate(route: Route, scenario: Scenario, timeout: number, signal: AbortSignal) {
   const response = simulatedResponse(scenario);
-  if (response) { await route.fulfill(response); return; }
-  if (scenario.id === "network") { await route.abort("failed"); return; }
+  if (response) { await route.fulfill(response); return response.status; }
+  if (scenario.id === "network") { await route.abort("failed"); return null; }
   if (scenario.id === "slow") await delay(scenario.delayMs, undefined, { signal });
-  await forwardLocal(route, timeout);
+  return forwardLocal(route, timeout);
 }
