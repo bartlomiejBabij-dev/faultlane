@@ -1,5 +1,11 @@
 # Ograniczenia i granice dowodu
 
+v0.3 dodaje instalację i onboarding, bez rozszerzenia przechwytywania. Paczka jest lokalna i nie została opublikowana. Automatyczna weryfikacja instalacji odbywa się na Windows/Node 24; macOS, Linux i inne obsługiwane linie Node wymagają własnego sprawdzenia. Implementacja używa przenośnych API Node, bez powłoki w runtime CLI.
+
+Doctor uruchamia przeglądarkę, wykonuje GET originu i strony, lecz nie testuje UI ani API. Kontrola uprawnień nie gwarantuje przyszłego zapisu przy pełnym dysku lub zmienionych ACL; dopiero run weryfikuje dowody. Doctor nie tworzy plików w projekcie, ale Chromium/tsx korzystają z systemowego katalogu tymczasowego. Zaufana konfiguracja `.ts` może sama wykonywać kod — to granica zaufania, nie gwarancja braku skutków ubocznych dowolnego pliku.
+
+Kreator nie wykrywa endpointów, tekstów UI, gotowości hydratacji ani portu ze złożonych skryptów. Wymaga danych użytkownika. Slow ma jawną asercję ładowania, empty nadal zwraca `[]`. SSR może pokazać przycisk przed handlerem; aplikacja powinna udostępniać gotowość przez disabled lub element dla waitForElement. Runner nie powtarza potajemnie kliknięć w celu uzyskania requestu.
+
 1. **Playwright browser request interception nie obejmuje automatycznie API wywoływanego wewnętrznie przez kod serwerowy Next.js.** Server Components, Server Actions, backendowe zadania i połączenia do baz wymagają innych mechanizmów testowania. Demo celowo używa fetch w komponencie klienckim.
 2. PASS oznacza tylko spełnienie jawnych oczekiwań w jednym wykonaniu. Nie dowodzi pełnej odporności, dostępności, poprawności biznesowej, wydajności ani przyczyny błędu. Błędny kontrakt testowy może opisywać niewłaściwe zachowanie.
 3. Tylko Chromium i browser GET w originie `baseUrl`, wyzwalany nawigacją albo deklaratywnym krokiem. Brak logowania, zachowanego profilu, mutujących API, GraphQL POST, SSE i wstrzykiwania usterek WebSocket. Lokatory mają jawny podzbiór ról ARIA; brak CSS/XPath, eval i dowolnego JavaScript. `count` sprawdza liczbę w DOM, nie widoczność.

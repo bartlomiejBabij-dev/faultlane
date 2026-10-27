@@ -1,14 +1,34 @@
-# FaultLane v0.2
+# FaultLane v0.3
 
 **Find failures before users do.** Lokalne narzędzie do sprawdzania, jak interfejs aplikacji reaguje na awarie API. Uruchamia prawdziwe Chromium, przechwytuje żądanie z przeglądarki, wykonuje jawne asercje Playwright i zapisuje raport wraz ze zrzutami ekranu.
 
 To działające MVP: brak kont, chmury, płatnych API i automatycznego skanowania. Panel pokazuje wyłącznie wyniki odczytane z dysku.
 
+**v0.3: CLI we własnym repozytorium.** Lokalnie instalowalny tarball lub `npm link`, interaktywny `faultlane init`, tryb `init --yes`, `faultlane doctor` i `faultlane run` działające bez serwera FaultLane. Konfiguracja i raporty pozostają w testowanej aplikacji. Paczka nie została opublikowana w npm.
+
+Pełna instrukcja dla zewnętrznych Next.js/React, instalacja i odinstalowanie, flagi kreatora oraz recovery: **[Pierwsze użycie](docs/getting-started.md)**.
+
+```sh
+# W repozytorium FaultLane:
+npm ci
+npm run build:cli
+npm pack
+# W katalogu własnej aplikacji (podaj rzeczywistą lokalną ścieżkę):
+npm install --save-dev "/sciezka/do/faultlane-0.3.0.tgz"
+npm exec --no -- faultlane init
+npm exec --no -- faultlane doctor
+# Jeżeli Chromium jest nieobecne: npm exec --no -- faultlane browsers install
+# Przy uruchomionej własnej aplikacji:
+npm exec --no -- faultlane run
+```
+
+Kreator wymaga konkretnych oczekiwań dla baseline i awarii. Bez nich `init --yes` kończy się kodem 2. Istniejącej konfiguracji nie zastępuje bez jawnej kopii (`--backup` lub wybór w kreatorze). `doctor` nie zapisuje plików w projekcie i nie pobiera przeglądarki. Nie stanowi dowodu poprawnego UI — tę weryfikację wykonuje `run`.
+
 Wersja 0.2 dodaje deklaratywne kroki użytkownika i testy **awaria → Retry → odzyskanie**. Dotychczasowe konfiguracje i pięć scenariuszy v0.1 nadal działają bez zmian. Nowe raporty mają `schemaVersion: 2`; panel czyta także wersję 1 i nie przepisuje starych plików.
 
 ## Szybki start
 
-Wymagania: Node.js **22.13+** (zalecane 24 LTS), npm, system obsługiwany przez Playwright. Wszystkie komendy uruchamiaj w katalogu projektu. Nie potrzebujesz `.env` ani żadnego klucza API.
+Wymagania: Node.js **22.13+, 24.x lub 26.x** (zalecana aktualna wersja LTS), npm, system obsługiwany przez Playwright. Poniższe komendy demonstracyjne uruchamiaj w katalogu FaultLane. Nie potrzebujesz `.env` ani żadnego klucza API.
 
 ```sh
 npm ci
@@ -242,7 +262,10 @@ npm test
 npm run test:e2e
 npm run test:journeys
 npm run build
-# albo pełna weryfikacja, łącznie z buildem:
+npm run build:cli
+npm pack --dry-run
+npm run test:package
+# albo pełna weryfikacja, łącznie z buildami i instalacją paczki:
 npm run verify
 ```
 
@@ -262,4 +285,4 @@ Szczegóły: [architektura](docs/architecture.md), [scenariusze](docs/scenarios.
 
 Recovery potwierdza kolejność i liczbę requestów w czasie scenariusza; nie dowodzi przyczynowości wobec dowolnego ukrytego timera aplikacji. Żądanie przed Retry jest błędem, a dodatkowe retry jest blokowane. Po zamknięciu kontekstu runner nie obserwuje dalszego zachowania aplikacji.
 
-Audyt punktu wyjścia i wykryte problemy: [docs/audit-v0.2.md](docs/audit-v0.2.md). Następny etap może rozszerzyć kontrakty o wieloetapowe odzyskiwanie i jawny model automatycznych retry/backoff.
+Audyt wcześniejszego etapu: [docs/audit-v0.2.md](docs/audit-v0.2.md). Wdrożenie zewnętrzne: [docs/getting-started.md](docs/getting-started.md). Następny etap może dodać jawne retry/backoff i wiele endpointów w jednym kontrakcie, zachowując lokalny charakter narzędzia.

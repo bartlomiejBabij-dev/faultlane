@@ -1,5 +1,26 @@
 # Scenariusze i oczekiwania
 
+## Kreator v0.3
+
+W zewnętrznym projekcie uruchom `faultlane init` z lokalnie zainstalowanego/linkowanego CLI. Schemat pozostaje zgodny z v0.2. Pełne przykłady i flagi: [pierwsze użycie](getting-started.md). `faultlane --help` działa bez konfiguracji i przeglądarki.
+
+| Flaga init | Znaczenie |
+| --- | --- |
+| `--yes` | Bez pytań; brak wymaganych wartości kończy się kodem 2 |
+| `--url`, `--page`, `--api` | Origin loopback, ścieżka strony i pathname GET API |
+| `--failure` | http-500, http-429, network, slow lub empty |
+| `--trigger`, `--click-role`, `--click-name` | auto/click; rola button/link, dokładna dostępna nazwa |
+| `--success-locator`, `--success-text` | Jawny pozytywny kontrakt baseline i recovery |
+| `--failure-locator`, `--failure-text` | Jawny komunikat po awarii/pustej odpowiedzi |
+| `--loading-locator` | hidden po odpowiedzi, visible podczas slow |
+| `--retry-name` | Widoczny przycisk o tej nazwie po awarii |
+| `--recovery` | HTTP 500, jeden fault, Retry, nowe prawdziwe 2xx i asercje odzyskania |
+| `--delay-ms` | Dla slow: 500–10000 ms, domyślnie 3000 |
+| `--reports-dir`, `--config` | Katalog dowodów i plik konfiguracji |
+| `--backup` | Jawne zachowanie starego pliku jako unikalny .bak przed zastąpieniem |
+
+Kreator zapisuje `role:ROLE[:NAME]`, `label:LABEL`, `testId:ID` jako istniejące obiekty locator, bez CSS i eval. Dla slow wymagane jest ładowanie, a końcowe asercje sprawdzają dane baseline. Recovery wymaga sukcesu, błędu, ładowania i Retry. Dodatkowe kroki można dopisać ręcznie w TypeScript.
+
 MVP zawiera dokładnie pięć typów awarii i baseline. Można skonfigurować podzbiór awarii, ale baseline jest obowiązkowy i uruchamia się jako pierwszy, również z `--scenario`.
 
 | ID | Mechanizm | Domyślny kontrakt UI |

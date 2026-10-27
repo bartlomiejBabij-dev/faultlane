@@ -1,10 +1,10 @@
 {
   "name": "faultlane",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=22.13.0"
+    "node": "^22.13.0 || ^24.0.0 || ^26.0.0"
   },
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
@@ -21,17 +21,18 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:journeys": "playwright test tests/e2e/journey.spec.ts",
-    "verify": "npm run typecheck && npm run lint && npm test && npm run test:e2e && npm run build",
-    "browsers:install": "playwright install chromium"
+    "verify": "npm run typecheck && npm run lint && npm test && npm run test:e2e && npm run build && npm run build:cli && npm run test:package",
+    "browsers:install": "playwright install chromium",
+    "build:cli": "node scripts/build-cli.mjs",
+    "prepack": "npm run build:cli",
+    "test:package": "tsx scripts/test-package.ts"
   },
   "dependencies": {
-    "next": "^16.4.3",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1",
-    "zod": "^4.6.7"
+    "zod": "^4.6.7",
+    "@playwright/test": "^1.64.1",
+    "tsx": "^4.23.15"
   },
   "devDependencies": {
-    "@playwright/test": "^1.64.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
@@ -39,8 +40,27 @@
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.4.3",
     "tailwindcss": "^4.3.3",
-    "tsx": "^4.23.15",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.5"
-  }
+    "vitest": "^5.0.5",
+    "next": "^16.4.3",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "esbuild": "^0.28.2"
+  },
+  "description": "Local-first browser API failure testing CLI",
+  "bin": {
+    "faultlane": "./dist/cli.js"
+  },
+  "exports": {
+    "./config": {
+      "types": "./dist/config.d.ts",
+      "import": "./dist/config.js",
+      "default": "./dist/config.js"
+    }
+  },
+  "files": [
+    "dist",
+    "docs",
+    "README.md"
+  ]
 }

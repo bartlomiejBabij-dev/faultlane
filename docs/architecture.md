@@ -2,6 +2,20 @@
 
 FaultLane jest pojedynczym projektem npm, ale runner nie zależy od procesu Next.js. CLI może testować inną lokalną aplikację, jeśli spełnia ograniczenia opisane w konfiguracji.
 
+## Dystrybucja CLI v0.3
+
+`package.json.bin` wskazuje `dist/cli.js` z shebang Node. `build:cli` używa esbuild do kompilacji własnego kodu i TypeScript do deklaracji typów. Runtime zależy od `@playwright/test`, `tsx` i `zod`; Next.js/React są zależnościami developerskimi panelu i przykładu. Pole `files` ogranicza tarball do `dist`, dokumentacji i README. `prepack` buduje dystrybucję. `private: true` chroni przed przypadkową publikacją; brak monorepo i instalacyjnego pobierania Chromium.
+
+Publiczne `faultlane/config` eksportuje `defineConfig`, typ wejściowy i schemat. Kreator generuje obiekt `satisfies FaultLaneConfigInput` z importem typu usuwanym w runtime, więc globalny link działa bez runtime importu z aplikacji. Edytor potrzebuje lokalnego pakietu/linku do rozpoznania typów. `load-config.ts` używa `tsx/esm/api` i obsługuje ESM oraz CommonJS. Zod waliduje wynik po wykonaniu zaufanej konfiguracji; nie jest to sandbox.
+
+`cli-args.ts` waliduje komendy i flagi przez `parseArgs` oraz Zod. `init.ts` współdzieli schemat kreatora i `--yes`, serializuje dane przez JSON i chroni stare pliki, tworząc kopię wyłącznie po jawnym wyborze. `project.ts` czyta tylko ograniczony rozmiarem `package.json`, wykrywa zależności i nazwy skryptów, nie wykonuje ich ani nie czyta `.env`.
+
+`doctor.ts` sprawdza Node, konfigurację, moduł Playwright, rzeczywiste uruchomienie Chromium, lokalny origin/stronę (GET, brak redirectów, timeout 5 s) i uprawnienia katalogu bez zapisu. Nie wywołuje API ani nie dowodzi poprawnego UI. `browsers install` jest osobną jawną komendą; uruchamia instalator Playwright przez `spawn` ze stałymi argumentami, bez powłoki.
+
+`paths.ts` rozwiązuje `reportsDir` względem katalogu wywołania, odrzuca względne wyjście poza projekt, ścieżki sieciowe i symlinki/junction w wyjściu. Absolutny lokalny katalog jest jawnym wyborem użytkownika zachowanym z v0.2. System plików i konfiguracja pozostają zaufane; ochrona nie obejmuje złośliwego procesu równolegle podmieniającego katalogi. Odczyt raportów w panelu nadal ma osobne kontrole `report-store.ts`.
+
+`scripts/test-package.ts` sprawdza zawartość tarballa i naprawdę instaluje go przez npm w dwóch świeżych projektach poza źródłami, uruchamia Next.js/HTTP i publiczne komendy. Rzeczywiste defekty oraz brak przeglądarki/requestu/aplikacji sprawdza kodami 1/2. Raporty pozostają do wglądu; położenie zapisuje w `.package-tests/latest.json`. Test nie pobiera Chromium i nie publikuje paczki. Instrukcja: [getting-started.md](getting-started.md).
+
 v0.2 rozszerza istniejące moduły, bez dodawania usług ani zależności. Dotychczasowy cykl baseline + pięć awarii pozostaje; każdy scenariusz może teraz mieć uporządkowane akcje i fazę recovery.
 
 ```text

@@ -15,6 +15,10 @@
 - Nie dodawaj testów pozorujących sukces. Test błędnego demo musi weryfikować rzeczywisty FAIL i niezerowy kod CLI.
 - Niezależna aplikacja testowa jest w `examples/catalog`; testuj runner również na niej, bez demo-specific selektorów. `npm run verify` obejmuje typecheck, lint, jednostkowe, wszystkie E2E i build.
 - Dokumentacja i podsumowania dla właściciela projektu są po polsku. Komunikaty produktu mogą pozostać po angielsku.
+- CLI v0.3 buduj przez `npm run build:cli`; `dist/cli.js` jest publicznym bin. Zachowaj `private: true` i paczkę bez panelu, źródeł demo i raportów.
+- `init` i `init --yes` współdzielą schemat v0.2; nie zgaduj oczekiwań UI i nie nadpisuj konfiguracji bez jawnej kopii. Nie pobieraj automatycznie Chromium w init/doctor/run.
+- `doctor` nie zapisuje plików w projekcie i nie certyfikuje UI. Konfiguracja TypeScript pozostaje zaufanym kodem; wyjaśniaj tę granicę.
+- Ścieżki CLI licz od katalogu aplikacji. `npm run test:package` kopiuje `examples/next-orders` i `examples/catalog` poza repozytorium, instaluje tarball i sprawdza rzeczywiste PASS/FAIL/ERROR. `npm run verify` obejmuje też build CLI i test paczki.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

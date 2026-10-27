@@ -153,7 +153,7 @@ async function executeScenario(browser: Browser, config: FaultLaneConfig, scenar
   return result;
 }
 
-export async function runFaultLane(input: FaultLaneConfig, options: { only?: string; onResult?: (result: ScenarioResult) => void } = {}): Promise<{ run: RunResult; directory: string }> {
+export async function runFaultLane(input: FaultLaneConfig, options: { only?: string; onBrowserReady?: () => void; onScenarioStart?: (id: Scenario["id"]) => void; onResult?: (result: ScenarioResult) => void } = {}): Promise<{ run: RunResult; directory: string }> {
   const config = configSchema.parse(input);
   const scenarios = selectScenarios(config, options.only);
   const started = new Date();
@@ -164,10 +164,15 @@ export async function runFaultLane(input: FaultLaneConfig, options: { only?: str
   const run: RunResult = { schemaVersion: 2, name: config.name ?? "FaultLane local run", id, startedAt: started.toISOString(), durationMs: 0, application: `${target.origin}${target.pathname}`, apiPattern: config.api.pathname, results: [] };
   let browser: Browser | undefined;
   try { browser = await chromium.launch({ headless: true, timeout: 20_000 }); }
-  catch { run.results = scenarios.map((scenario) => ({ ...emptyResult(scenario), code: "BROWSER_LAUNCH", observation: "Chromium could not be launched. Run npm run browsers:install and check the local environment." })); }
+  catch {
+    run.results = scenarios.map((scenario) => ({ ...emptyResult(scenario), code: "BROWSER_LAUNCH", observation: "Chromium could not be launched. Run faultlane browsers install (repository: npm run browsers:install) and check the local environment." }));
+    for (const result of run.results) options.onResult?.(result);
+  }
   if (browser) {
     try {
+      options.onBrowserReady?.();
       for (const scenario of scenarios) {
+        options.onScenarioStart?.(scenario.id);
         const result = await executeScenario(browser, config, scenario, directory);
         run.results.push(result);
         options.onResult?.(result);
