@@ -1,6 +1,7 @@
 import { open, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { evidencePattern, runIdPattern, runResultSchema, type RunResult } from "../runner/results";
+import { assertReportPublished } from "../runner/evidence";
 
 function inside(root: string, candidate: string): boolean {
   const relative = path.relative(root, candidate);
@@ -11,8 +12,10 @@ export async function readReportFile(root: string, runId: string, filename: stri
   if (!runIdPattern.test(runId) || !(filename === "results.json" || filename === "report.md" || evidencePattern.test(filename))) throw new Error("Invalid report path");
   const canonicalRoot = await realpath(path.resolve(root));
   const canonicalRun = await realpath(path.join(canonicalRoot, runId));
+  if (!inside(canonicalRoot, canonicalRun)) throw new Error("Report path escapes its directory");
+  await assertReportPublished(canonicalRun);
   const candidate = await realpath(path.join(canonicalRun, filename));
-  if (!inside(canonicalRoot, canonicalRun) || !inside(canonicalRun, candidate)) throw new Error("Report path escapes its directory");
+  if (!inside(canonicalRun, candidate)) throw new Error("Report path escapes its directory");
   const file = await open(candidate, "r");
   try {
     const stat = await file.stat();

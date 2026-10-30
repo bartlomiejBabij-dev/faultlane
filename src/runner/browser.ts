@@ -6,17 +6,17 @@ import { checkAssertions, describeAssertion } from "./assertions";
 import { configSchema, isLoopbackUrl, selectScenarios, type Assertion, type FaultLaneConfig, type Scenario } from "./config";
 import { forwardLocal, scenarioLabels, simulate } from "./scenarios";
 import { type AssertionResult, type RunResult, type ScenarioResult } from "./results";
-import { writeReport } from "./report";
+import { writeReport, type ReportPersistence } from "./report";
 import { RunnerIssue } from "./errors";
 import { describeAction, executeAction, navigateLocal } from "./actions";
 import { captureEvidence, evidenceFailed, evidenceSaved, executeSteps, type PlannedStep } from "./steps";
-import { EvidenceIssue, evidenceReason } from "./evidence";
+import { EVIDENCE_IO_DEADLINE_MS, EvidenceIssue, evidenceReason, withEvidenceDeadline } from "./evidence";
 import { RequestTracker } from "./requests";
 import { emptyNetworkResult, executeNetworkScenario } from "./browser-network";
 import { scenarioIdentity } from "./compare";
 
 function emptyResult(scenario: Scenario): ScenarioResult {
-  return { id: scenario.id, name: scenario.name ?? scenarioLabels[scenario.id], status: "ERROR", code: null, durationMs: 0, observedRequests: 0, interceptedRequests: 0, faultedRequests: 0, requests: [], steps: [], failedStep: null, assertions: [], observation: "Scenario did not finish.", suggestion: "Inspect the local server, API pathname and configured timeouts.", screenshot: null, loadingScreenshot: null, diagnostics: [], evidence: { status: "SKIPPED", failures: [] } };
+  return { id: scenario.id, name: scenario.name ?? scenarioLabels[scenario.id], status: "ERROR", code: null, durationMs: 0, observedRequests: 0, interceptedRequests: 0, faultedRequests: 0, requests: [], steps: [], failedStep: null, assertions: [], observation: "Scenario did not finish.", suggestion: "Inspect the local server, API pathname and configured timeouts.", screenshot: null, loadingScreenshot: null, diagnostics: [], evidence: { status: "SKIPPED", captureStatus: "SKIPPED", persistenceStatus: "SKIPPED", failures: [] } };
 }
 
 async function executeScenario(browser: Browser, config: FaultLaneConfig, scenario: Scenario, directory: string): Promise<ScenarioResult> {
@@ -157,18 +157,18 @@ async function executeScenario(browser: Browser, config: FaultLaneConfig, scenar
   return result;
 }
 
-export async function runFaultLane(input: FaultLaneConfig, options: { only?: string; onBrowserReady?: () => void; onScenarioStart?: (id: Scenario["id"]) => void; onResult?: (result: ScenarioResult) => void } = {}): Promise<{ run: RunResult; directory: string }> {
+export async function runFaultLane(input: FaultLaneConfig, options: { only?: string; onBrowserReady?: () => void; onScenarioStart?: (id: Scenario["id"]) => void; onResult?: (result: ScenarioResult) => void } = {}): Promise<{ run: RunResult; directory: string; reportPersistence: ReportPersistence }> {
   const config = configSchema.parse(input);
   const scenarios = selectScenarios(config, options.only);
   const started = new Date();
   const id = `${started.toISOString().replace(/[-:.]/g, "")}-${randomUUID().slice(0, 8)}`;
   const directory = path.resolve(config.reportsDir, id);
   try {
-    await mkdir(path.dirname(directory), { recursive: true });
-    await mkdir(directory); // Exclusive creation: never reuse or overwrite a previous run.
-  } catch (error) { throw new EvidenceIssue("run-directory", evidenceReason(error)); }
+    await withEvidenceDeadline("run-directory-parent", () => mkdir(path.dirname(directory), { recursive: true }), EVIDENCE_IO_DEADLINE_MS);
+    await withEvidenceDeadline("run-directory", () => mkdir(directory), EVIDENCE_IO_DEADLINE_MS); // Exclusive creation.
+  } catch (error) { throw error instanceof EvidenceIssue ? error : new EvidenceIssue("run-directory", evidenceReason(error)); }
   const target = new URL(config.pagePath, config.baseUrl);
-  const run: RunResult = { schemaVersion: config.endpoints ? 3 : 2, name: config.name ?? "FaultLane local run", id, startedAt: started.toISOString(), durationMs: 0, application: `${target.origin}${target.pathname}`, apiPattern: config.api?.pathname ?? "Multiple explicit endpoints", results: [] };
+  const run: RunResult = { schemaVersion: config.endpoints ? 3 : 2, publicationProtocol: "pending-marker-v1", name: config.name ?? "FaultLane local run", id, startedAt: started.toISOString(), durationMs: 0, application: `${target.origin}${target.pathname}`, apiPattern: config.api?.pathname ?? "Multiple explicit endpoints", results: [] };
   let browser: Browser | undefined;
   try { browser = await chromium.launch({ headless: true, timeout: 20_000 }); }
   catch {
@@ -189,6 +189,6 @@ export async function runFaultLane(input: FaultLaneConfig, options: { only?: str
   }
   for (let i = 0; i < run.results.length; i++) run.results[i]!.identity ??= scenarioIdentity(config, scenarios[i]!);
   run.durationMs = Date.now() - started.getTime();
-  await writeReport(directory, run);
-  return { run, directory };
+  const reportPersistence = await writeReport(directory, run);
+  return { run, directory, reportPersistence };
 }

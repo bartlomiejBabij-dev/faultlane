@@ -1,7 +1,9 @@
-import path from "node:path";
 import { type RunResult, type ScenarioResult, summarize } from "./results";
 import { scenarioLabels } from "./scenarios";
-import { EvidenceIssue, writeExclusiveFile } from "./evidence";
+import type { EvidenceWriteOptions } from "./evidence";
+import { serializeReport } from "./report-serialization";
+import { publishReportFiles, type ReportPersistence } from "./report-persistence";
+export type { ReportPersistence } from "./report-persistence";
 
 const escape = (value: string) => value.replace(/[\\`*_{}[\]()<>|#!]/g, "\\$&").replace(/[\r\n]+/g, " ");
 function endpointEvidence(result: ScenarioResult): string[] {
@@ -64,6 +66,7 @@ export function markdownReport(run: RunResult): string {
     for (const diagnostic of result.diagnostics) lines.push(`- Diagnostic: ${escape(diagnostic)}`);
     if (result.evidence) {
       lines.push(`- Evidence: ${result.evidence.status}`);
+      if (result.evidence.captureStatus || result.evidence.persistenceStatus) lines.push(`- Screenshot capture: ${result.evidence.captureStatus ?? "not recorded"}; file persistence: ${result.evidence.persistenceStatus ?? "not recorded"}.`);
       for (const failure of result.evidence.failures) lines.push(`- Evidence failure: ${escape(failure)}`);
     }
     if (result.screenshot) lines.push("", `[${result.status === "PASS" ? "Scenario" : "Failure"} screenshot](./${result.screenshot})`);
@@ -74,12 +77,6 @@ export function markdownReport(run: RunResult): string {
   return lines.join("\n");
 }
 
-export async function writeReport(directory: string, run: RunResult) {
-  let json: string;
-  let markdown: string;
-  try { json = JSON.stringify(run, null, 2) + "\n"; markdown = markdownReport(run); }
-  catch { throw new EvidenceIssue("report-serialize", "SERIALIZATION_FAILED"); }
-  await writeExclusiveFile(path.join(directory, "report.md"), Buffer.from(markdown));
-  // JSON is the commit marker: the dashboard lists only completed, validated runs.
-  await writeExclusiveFile(path.join(directory, "results.json"), Buffer.from(json));
+export async function writeReport(directory: string, run: RunResult, options: EvidenceWriteOptions & { serializationMs?: number } = {}): Promise<ReportPersistence> {
+  return await publishReportFiles(directory, { markdown: "report.md", json: "results.json" }, await serializeReport(run, options.serializationMs), options);
 }

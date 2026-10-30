@@ -11,7 +11,7 @@ const previous = await lstat(outdir).catch((error) => { if (error.code !== "ENOE
 if (previous?.isSymbolicLink()) throw new Error("Build output must not be a symlink");
 // Delete only this project's verified generated directory, never source or reports.
 await rm(outdir, { recursive: true, force: true });
-await build({ absWorkingDir: root, entryPoints: ["src/runner/cli.ts", "src/runner/config.ts"], outdir, bundle: true, splitting: true, platform: "node", format: "esm", target: "node22", packages: "external", define: { FAULTLANE_VERSION: JSON.stringify(pkg.version) }, sourcemap: false });
+await build({ absWorkingDir: root, entryPoints: ["src/runner/cli.ts", "src/runner/config.ts", "src/runner/report-serializer-worker.ts"], outdir, bundle: true, splitting: true, platform: "node", format: "esm", target: "node22", packages: "external", define: { FAULTLANE_VERSION: JSON.stringify(pkg.version) }, sourcemap: false });
 await chmod(path.join(outdir, "cli.js"), 0o755);
 const configFile = ts.readConfigFile(path.join(root, "tsconfig.cli.json"), ts.sys.readFile);
 if (configFile.error) throw new Error("Could not read CLI TypeScript configuration");

@@ -1,4 +1,4 @@
-# FaultLane v0.5 — pierwsze użycie we własnej aplikacji
+# FaultLane v0.5.1 — pierwsze użycie we własnej aplikacji
 
 Porównanie dwóch przebiegów i kody procesu opisuje [regression-comparison.md](regression-comparison.md), konfigurację GitHub Actions — [ci-integration.md](ci-integration.md), a kontrolę prywatnej bety — [beta-checklist.md](beta-checklist.md). W razie błędu zrzutu sprawdź osobne pole `evidence` i diagnostykę etapu; kod procesu 2 nie oznacza, że inne obserwacje UI zostały utracone.
 
@@ -17,17 +17,17 @@ npm pack --dry-run
 npm pack
 ```
 
-`npm pack` uruchamia także `prepack`, czyli ponowny build CLI, i tworzy tarball o wersji z `package.json` — dla wydania v0.5 jest to `faultlane-0.5.0.tgz`. Nie publikuje paczki. Dystrybucja zawiera skompilowany JavaScript, deklaracje typów i dokumentację, bez panelu Next.js, demo, konfiguracji projektu, screenshotów i historycznych raportów. Flaga `private: true` pozostaje włączona.
+`npm pack` uruchamia także `prepack`, czyli ponowny build CLI, i tworzy tarball o wersji z `package.json` — dla wydania v0.5.1 jest to `faultlane-0.5.1.tgz`. Nie publikuje paczki. Dystrybucja zawiera skompilowany JavaScript, deklaracje typów i dokumentację, bez panelu Next.js, demo, konfiguracji projektu, screenshotów i historycznych raportów. Flaga `private: true` pozostaje włączona.
 
 W katalogu **własnej aplikacji**, z poprawną lokalną ścieżką do tarballa:
 
 ```sh
-npm install --save-dev "/sciezka/do/faultlane/faultlane-0.5.0.tgz"
+npm install --save-dev "/sciezka/do/faultlane/faultlane-0.5.1.tgz"
 npm exec --no -- faultlane --version
 npm exec --no -- faultlane --help
 ```
 
-Na Windows podaj np. `"C:\projekty\faultlane\faultlane-0.5.0.tgz"`. W tej instrukcji `npm exec --no -- faultlane` oznacza wykonywalny plik z już zainstalowanej lokalnej paczki; odmowa instalacji zapobiega przypadkowemu sięgnięciu po publiczny pakiet o tej nazwie. W skrypcie `package.json` możesz używać bezpośrednio `faultlane run`, np. `"test:reliability": "faultlane run"`.
+Na Windows podaj np. `"C:\projekty\faultlane\faultlane-0.5.1.tgz"`. W tej instrukcji `npm exec --no -- faultlane` oznacza wykonywalny plik z już zainstalowanej lokalnej paczki; odmowa instalacji zapobiega przypadkowemu sięgnięciu po publiczny pakiet o tej nazwie. W skrypcie `package.json` możesz używać bezpośrednio `faultlane run`, np. `"test:reliability": "faultlane run"`.
 
 Alternatywa z `npm link`:
 

@@ -32,6 +32,7 @@ describe("regression comparison", () => {
     const comparison = compareRuns(run(result("PASS")), run(current));
     expect(comparison.entries[0]).toMatchObject({ baseEvidence: "SAVED", headEvidence: "FAILED" });
     expect(comparisonMarkdown(comparison)).toContain("REGRESSION (1)");
+    expect(comparisonExitCode(comparison)).toBe(2);
   });
   it("reports changed endpoint coverage without assuming changed identities are equivalent", () => {
     const endpoint = (expectedRequests: number, interceptedRequests: number) => ({ id: "orders", expectedRequests, interceptedRequests }) as NonNullable<ScenarioResult["endpoints"]>[number];
@@ -58,6 +59,7 @@ describe("regression comparison", () => {
       const comparison = compareRuns(before, after);
       await inspectComparisonEvidence(comparison, before, after, path.join(dir, "a.json"), path.join(dir, "b.json"));
       expect(comparison.entries[0]).toMatchObject({ baseScreenshot: "AVAILABLE: baseline.png", headScreenshot: "UNAVAILABLE" });
+      expect(comparisonExitCode(comparison)).toBe(2);
     } finally { await rm(dir, { recursive: true, force: true }); }
   });
 });

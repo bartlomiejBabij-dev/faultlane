@@ -1,8 +1,10 @@
-# FaultLane v0.5
+# FaultLane v0.5.1
 
 **Find failures before users do.** Lokalne narzędzie do sprawdzania, jak interfejs aplikacji reaguje na awarie API. Uruchamia prawdziwe Chromium, przechwytuje żądanie z przeglądarki, wykonuje jawne asercje Playwright i zapisuje raport wraz ze zrzutami ekranu.
 
 Porównanie dwóch wyników: `faultlane compare --base reports/ID_1/results.json --head reports/ID_2/results.json`. Raport porównania powstaje w osobnym katalogu `comparisons/`; starsze przebiegi bez tożsamości scenariusza są oznaczane jako nieporównywalne. Szczegóły i kody: [porównanie](docs/regression-comparison.md), [CI](docs/ci-integration.md), [lista bety](docs/beta-checklist.md).
+
+Zapis dowodów ma ograniczony czas oczekiwania. `EVIDENCE_TIMEOUT` oznacza przekroczenie terminu, a `EVIDENCE_UNSUPPORTED` — brak bezpiecznej publikacji hard-linkiem. Niewykonany lub niezapisany wymagany dowód daje kod procesu 2; błąd UI pozostaje osobno widoczny. Niekompletne raporty są oznaczone plikiem `.faultlane-report-pending` i odrzucane przez panel oraz `compare`. Ograniczenia anulowania i zasady ręcznego odczytu: [ograniczenia](docs/limitations.md).
 
 To działające MVP: brak kont, chmury, płatnych API i automatycznego skanowania. Panel pokazuje wyłącznie wyniki odczytane z dysku.
 
@@ -18,7 +20,7 @@ npm ci
 npm run build:cli
 npm pack
 # W katalogu własnej aplikacji (podaj rzeczywistą lokalną ścieżkę):
-npm install --save-dev "/sciezka/do/faultlane-0.5.0.tgz"
+npm install --save-dev "/sciezka/do/faultlane-0.5.1.tgz"
 npm exec --no -- faultlane init
 npm exec --no -- faultlane doctor
 # Jeżeli Chromium jest nieobecne: npm exec --no -- faultlane browsers install

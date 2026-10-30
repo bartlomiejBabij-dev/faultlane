@@ -3,12 +3,14 @@ import { lstat, open, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import type { FaultLaneConfig, Scenario } from "./config";
 import { runResultSchema, type RunResult, type ScenarioResult } from "./results";
-import { writeExclusiveFile } from "./evidence";
+import { assertReportPublished } from "./evidence";
+import { serializeComparison } from "./report-serialization";
+import { publishReportFiles, type ReportPersistence } from "./report-persistence";
 
 type Category = "REGRESSION" | "IMPROVEMENT" | "UNCHANGED" | "NEW" | "REMOVED" | "INCOMPARABLE";
 type Coverage = { id: string; baseExpected: number | null; headExpected: number | null; baseActual: number | null; headActual: number | null };
 export type ComparisonEntry = { id: string; category: Category; base: string | null; head: string | null; baseEvidence: string; headEvidence: string; baseScreenshot: string; headScreenshot: string; coverage: Coverage[]; reason: string };
-export type Comparison = { version: 1; baseRun: string; headRun: string; entries: ComparisonEntry[]; limitations: string[] };
+export type Comparison = { version: 1; publicationProtocol: "pending-marker-v1"; baseRun: string; headRun: string; entries: ComparisonEntry[]; limitations: string[] };
 
 function stable(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stable);
@@ -51,7 +53,7 @@ export function compareRuns(base: RunResult, head: RunResult): Comparison {
     else category = "UNCHANGED";
     entries.push({ id, category, base: before?.status ?? null, head: after?.status ?? null, baseEvidence: evidence(before), headEvidence: evidence(after), baseScreenshot: "NOT_CHECKED", headScreenshot: "NOT_CHECKED", coverage: coverage(before, after), reason });
   }
-  return { version: 1, baseRun: base.id, headRun: head.id, entries, limitations: ["Only identical recorded scenario identities are compared; old reports lack identity and are incomparable.", "Execution errors do not prove a behavioral regression. Evidence status describes the original run and does not prove files still exist.", "Durations are not compared. Endpoint counts are recorded only when available."] };
+  return { version: 1, publicationProtocol: "pending-marker-v1", baseRun: base.id, headRun: head.id, entries, limitations: ["Only identical recorded scenario identities are compared; old reports lack identity and are incomparable.", "Execution errors do not prove a behavioral regression. Evidence status describes the original run and does not prove files still exist.", "Durations are not compared. Endpoint counts are recorded only when available."] };
 }
 async function screenshotAvailability(result: ScenarioResult | undefined, reportFile: string): Promise<string> {
   if (!result?.screenshot) return "NOT_RECORDED";
@@ -73,12 +75,13 @@ export async function inspectComparisonEvidence(comparison: Comparison, base: Ru
   }));
 }
 export async function readComparisonInput(filename: string): Promise<RunResult> {
+  await assertReportPublished(path.dirname(filename));
   const size = (await stat(filename)).size;
   if (size > 2_000_000) throw new Error("Report is too large.");
   return runResultSchema.parse(JSON.parse(await readFile(filename, "utf8")) as unknown);
 }
 export function comparisonExitCode(comparison: Comparison): 0 | 1 | 2 {
-  if (comparison.entries.some((e) => e.category === "INCOMPARABLE")) return 2;
+  if (comparison.entries.some((e) => e.category === "INCOMPARABLE" || ["FAILED", "SKIPPED"].includes(e.baseEvidence) || ["FAILED", "SKIPPED"].includes(e.headEvidence) || e.baseScreenshot === "UNAVAILABLE" || e.headScreenshot === "UNAVAILABLE")) return 2;
   return comparison.entries.some((e) => e.category === "REGRESSION") ? 1 : 0;
 }
 export function comparisonMarkdown(comparison: Comparison): string {
@@ -97,9 +100,9 @@ export function comparisonMarkdown(comparison: Comparison): string {
   lines.push("## Limitations", "", ...comparison.limitations.map((s) => `- ${s}`), "");
   return lines.join("\n");
 }
-export async function writeComparison(root: string, comparison: Comparison): Promise<string> {
+export async function writeComparison(root: string, comparison: Comparison): Promise<{ directory: string; reportPersistence: ReportPersistence }> {
   const directory = path.join(root, `comparison-${randomUUID()}`);
-  await writeExclusiveFile(path.join(directory, "comparison.md"), Buffer.from(comparisonMarkdown(comparison)));
-  await writeExclusiveFile(path.join(directory, "comparison.json"), Buffer.from(JSON.stringify(comparison, null, 2) + "\n"));
-  return directory;
+  const serialized = await serializeComparison(comparison);
+  const reportPersistence = await publishReportFiles(directory, { markdown: "comparison.md", json: "comparison.json" }, serialized);
+  return { directory, reportPersistence };
 }

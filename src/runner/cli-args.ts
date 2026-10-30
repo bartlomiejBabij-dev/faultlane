@@ -69,7 +69,7 @@ External API origins require mockOrigins permission; real external API forwardin
 Explicit asset rules permit only chosen origin/path/resource types, with no browser credentials.
 Advanced --from-json accepts the actual runtime configuration schema, including UI assertions.
 Exit codes: 0 = success / all PASS; 1 = UI FAIL; 2 = configuration / execution ERROR.
-Compare: 0 = no confirmed regressions; 1 = confirmed regression; 2 = invalid or incomparable input.
+Compare: 0 = no confirmed regressions; 1 = confirmed regression; 2 = invalid, incomparable or unavailable evidence.
 Doctor: PASS / WARNING / ERROR; WARNING alone exits 0 and is not a test PASS.
 Config files execute trusted local TypeScript. No public npm release; use a local tarball/link.
 Colors: --no-color or NO_COLOR. No automatic browser download.`;

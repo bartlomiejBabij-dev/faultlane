@@ -2,7 +2,7 @@
 
 ## Dowody i porównanie
 
-Zrzut jest pobierany przed zamknięciem kontekstu, zapisywany do unikalnego pliku tymczasowego, sprawdzany i atomowo publikowany przez hard link bez nadpisania istniejącego pliku. Raporty JSON i Markdown są publikowane osobno tą samą metodą; JSON pozostaje znacznikiem ukończonego przebiegu. Wymagany jest lokalny system plików obsługujący hard linki. Po błędach runner próbuje usunąć własny plik tymczasowy; awaria usuwania może go pozostawić. Nie ma ukrytego ponawiania. Zapis nie stanowi transakcji obejmującej oba pliki ani gwarancji przeżycia utraty zasilania.
+Zrzut jest pobierany przed zamknięciem kontekstu, zapisywany do unikalnego pliku tymczasowego, sprawdzany i atomowo publikowany przez hard link bez nadpisania istniejącego pliku. Serializacja JSON i Markdown odbywa się w osobnym, współdzielonym wątku. Raporty są publikowane osobno; `.faultlane-report-pending` blokuje ich odczyt przez panel i `compare`, dopóki oba pliki nie zostały zapisane i sprawdzone. Wymagany jest lokalny system plików obsługujący hard linki. Po błędach runner próbuje usunąć własny plik tymczasowy; awaria usuwania może go pozostawić. Nie ma ukrytego ponawiania. Zapis nie stanowi transakcji obejmującej oba pliki ani gwarancji przeżycia utraty zasilania.
 
 Wynik scenariusza i `evidence` są osobne. Błąd UI wraz z błędem zrzutu zachowuje FAIL i szczegóły dowodu; proces zwraca 2. Diagnostyka zawiera etap i ograniczony kod, bez surowych wyjątków aplikacji, ścieżek, nagłówków i stosów. Porównanie bazuje na skrócie pełnej istotnej konfiguracji scenariusza, nie na nazwie. Raporty bez skrótu nie są automatycznie uznawane za równoważne. Szczegóły: [porównanie](regression-comparison.md) i [CI](ci-integration.md).
 

@@ -3,14 +3,15 @@ import type { FaultLaneConfig } from "./config";
 import type { ScenarioResult, StepResult } from "./results";
 import { RunnerIssue } from "./errors";
 import path from "node:path";
-import { EvidenceIssue, evidenceReason, writeExclusiveFile } from "./evidence";
+import { EvidenceIssue, SCREENSHOT_DEADLINE_MS, evidenceReason, withEvidenceDeadline, writeExclusiveFile } from "./evidence";
 
 export type PlannedStep = { phase: StepResult["phase"]; expected: string; run: () => Promise<void> };
-export async function captureEvidence(page: Page, filename: string, config: FaultLaneConfig) {
+export async function captureEvidence(page: Page, filename: string, config: FaultLaneConfig, timeoutMs = SCREENSHOT_DEADLINE_MS) {
   let data: Buffer;
   try {
-    data = await page.screenshot({ fullPage: true, timeout: 5000, animations: "disabled", mask: [page.locator('input[type="password"], [data-faultlane-private]'), ...config.maskTestIds.map((id) => page.getByTestId(id))] });
+    data = await withEvidenceDeadline("capture", () => page.screenshot({ fullPage: true, timeout: timeoutMs, animations: "disabled", mask: [page.locator('input[type="password"], [data-faultlane-private]'), ...config.maskTestIds.map((id) => page.getByTestId(id))] }), timeoutMs);
   } catch (error) {
+    if (error instanceof EvidenceIssue) throw error;
     throw new EvidenceIssue("capture", page.isClosed() ? "PAGE_CLOSED" : error instanceof Error && error.name === "TimeoutError" ? "TIMEOUT" : "BROWSER_FAILURE");
   }
   if (data.length < 8 || !data.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) throw new EvidenceIssue("capture", "INVALID_PNG");
@@ -20,11 +21,18 @@ export async function captureEvidence(page: Page, filename: string, config: Faul
 export function evidenceSaved(result: ScenarioResult): void {
   result.evidence ??= { status: "SKIPPED", failures: [] };
   if (result.evidence.status !== "FAILED") result.evidence.status = "SAVED";
+  if (result.evidence.captureStatus !== "FAILED") result.evidence.captureStatus = "SAVED";
+  if (result.evidence.persistenceStatus !== "FAILED") result.evidence.persistenceStatus = "SAVED";
 }
 export function evidenceFailed(result: ScenarioResult, where: string, error: unknown): void {
   result.evidence ??= { status: "SKIPPED", failures: [] };
   result.evidence.status = "FAILED";
-  if (result.evidence.failures.length < 20) result.evidence.failures.push(`${where}: ${evidenceReason(error)}`);
+  if (error instanceof EvidenceIssue && error.stage === "capture") result.evidence.captureStatus = "FAILED";
+  else {
+    if (result.evidence.captureStatus !== "FAILED") result.evidence.captureStatus = "SAVED";
+    result.evidence.persistenceStatus = "FAILED";
+  }
+  if (result.evidence.failures.length < 20) result.evidence.failures.push(`${where}: ${error instanceof EvidenceIssue ? `[${error.code}] ` : ""}${evidenceReason(error)}`.slice(0, 200));
 }
 
 export async function executeSteps(plan: PlannedStep[], page: Page, config: FaultLaneConfig, result: ScenarioResult, directory: string, checkHealth: () => void) {

@@ -34,7 +34,7 @@ export function emptyNetworkResult(config: FaultLaneConfig, scenario: Scenario):
     id: scenario.id, name: scenario.name ?? scenarioLabels[scenario.id], status: "ERROR", code: null, durationMs: 0,
     observedRequests: 0, interceptedRequests: 0, faultedRequests: 0, requests: [], steps: [], failedStep: null, assertions: [],
     observation: "Scenario did not finish.", suggestion: "Check the local application, configured endpoints and browser installation.",
-    screenshot: null, loadingScreenshot: null, diagnostics: [], evidence: { status: "SKIPPED", failures: [] }, endpoints: tracker.summary(), network,
+    screenshot: null, loadingScreenshot: null, diagnostics: [], evidence: { status: "SKIPPED", captureStatus: "SKIPPED", persistenceStatus: "SKIPPED", failures: [] }, endpoints: tracker.summary(), network,
   };
 }
 

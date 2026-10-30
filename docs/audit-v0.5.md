@@ -1,5 +1,7 @@
 # Audyt FaultLane v0.5 — 30 października 2026
 
+Późniejsze zmiany i nowe wyniki są dokumentowane osobno w [audycie v0.5.1](audit-v0.5.1.md); poniższe dane pozostają historycznym zapisem v0.5.
+
 ## Punkt wyjścia
 
 Drzewo Git było czyste na gałęzi `main`. Bazowe `npm run verify` zakończyło się kodem 0: 168 testów jednostkowych, 40 E2E, typecheck, lint, build Next.js, build CLI oraz instalacja tarballa i testy niezależnych aplikacji. Środowisko: Windows, Node 24.21.0, npm 12.2.0. Testy zapisują nowe raporty; historycznych raportów nie edytowano ani nie usuwano. Nie wykonano commita, pusha, wdrożenia ani publikacji.

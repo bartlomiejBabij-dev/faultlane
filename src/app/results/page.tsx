@@ -19,6 +19,7 @@ function ScenarioDetails({ result, runId }: { result: ScenarioResult; runId: str
     <summary><span className="scenario-name">{scenarioLabels[result.id]}</span><span className="scenario-duration">{(result.durationMs / 1000).toFixed(1)}s</span><span className={`status ${result.status.toLowerCase()}`}>{result.status === "PASS" ? "✓" : "!"} {result.status}</span></summary>
     <div className="scenario-body"><h3>{result.name ?? "Observed behavior"}</h3><p className="text-xs">{result.observation}</p>
       <p className="muted">Behavior: {result.status === "FAIL" ? "FAIL · UI expectation" : result.status === "ERROR" ? "ERROR · execution or infrastructure" : "PASS"} · Evidence: {result.evidence?.status ?? "not recorded in this report"} · Screenshot: {result.screenshot ? "recorded (file may have been removed)" : "not recorded"}</p>
+      {result.evidence && <p className="muted">Capture: {result.evidence.captureStatus ?? "not recorded"} · File persistence: {result.evidence.persistenceStatus ?? "not recorded"}</p>}
       {result.evidence?.failures.map((failure) => <p className="text-xs" key={failure}>Evidence error: {failure}</p>)}
       <div className="request-metrics"><span>Observed <strong>{result.observedRequests ?? "not recorded (v0.1)"}</strong></span><span>Intercepted <strong>{result.interceptedRequests}</strong></span><span>Faulted <strong>{result.faultedRequests ?? "not recorded (v0.1)"}</strong></span></div>
       {result.code && <p className="muted"><code>{result.code}</code>{result.failedStep ? ` · Stopped at step ${result.failedStep}` : ""}</p>}

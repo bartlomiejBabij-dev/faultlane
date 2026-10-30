@@ -8,6 +8,7 @@ import { createServer } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 import { runResultSchema, type RunResult } from "../src/runner/results";
 import { verifyCompatibilityPackage } from "./package-compatibility";
+import { stopFixtureProcess } from "./fixture-process";
 
 const exec = promisify(execFile);
 const root = process.cwd();
@@ -53,13 +54,9 @@ async function freePort(): Promise<number> {
   const address = server.address(); assert(address && typeof address !== "string");
   await new Promise<void>((resolve) => server.close(() => resolve())); return address.port;
 }
-async function stop(child: ChildProcess | undefined): Promise<void> {
-  if (!child || child.exitCode !== null) return;
-  if (process.platform === "win32") await exec("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true }).catch(() => undefined);
-  else child.kill("SIGTERM");
-}
 const pack = packResult(await npm(["pack", "--dry-run", "--ignore-scripts", "--json"], root));
 assert(pack.files.some((file) => file.path === "dist/cli.js"));
+assert(pack.files.some((file) => file.path === "dist/report-serializer-worker.js"));
 assert(pack.files.some((file) => file.path === "dist/config.d.ts"));
 assert(pack.files.every((file) => !/^(src|reports|\.next|node_modules|examples)\//.test(file.path)), "Package must exclude dashboard, source and reports");
 assert(pack.files.every((file) => !/(^|\/)(?:\.env[^/]*|\.git|reports|comparisons|playwright-report|test-results)(?:\/|$)/i.test(file.path) && !/\.png$/i.test(file.path)), "Package must exclude private environment files, reports and screenshots");
@@ -77,6 +74,7 @@ assert(nextPkg.dependencies.next); assert(catalogPkg.devDependencies.tsx);
 let nextServer: ChildProcess | undefined;
 let catalogServer: ChildProcess | undefined;
 const evidence: { app: string; directory: string; statuses: string[] }[] = [];
+let completed = false;
 try {
   for (const project of [nextProject, catalogProject]) {
     await npm(["install", "--prefer-offline", "--ignore-scripts", "--no-audit", "--no-fund", "--save-dev", tarball], project);
@@ -90,7 +88,7 @@ try {
     console.log(`Installed tarball and verified public CLI in ${path.basename(project)}.`);
   }
   const port = await freePort();
-  nextServer = spawn(process.execPath, [path.join(nextProject, "node_modules/next/dist/bin/next"), "dev", "--hostname", "127.0.0.1", "--port", String(port)], { cwd: nextProject, stdio: "ignore", windowsHide: true });
+  nextServer = spawn(process.execPath, [path.join(nextProject, "node_modules/next/dist/bin/next"), "dev", "--hostname", "127.0.0.1", "--port", String(port)], { cwd: nextProject, stdio: "ignore", windowsHide: true, detached: process.platform !== "win32" });
   const nextUrl = `http://127.0.0.1:${port}`;
   let ready = false;
   for (let i = 0; i < 120; i++) {
@@ -101,7 +99,7 @@ try {
   assert(ready, "Independent Next.js fixture did not become ready");
   const catalogPort = await freePort();
   const catalogUrl = `http://127.0.0.1:${catalogPort}`;
-  catalogServer = spawn(process.execPath, ["--import", "tsx", "start.ts"], { cwd: catalogProject, env: { ...process.env, PORT: String(catalogPort) }, stdio: "ignore", windowsHide: true });
+  catalogServer = spawn(process.execPath, ["--import", "tsx", "start.ts"], { cwd: catalogProject, env: { ...process.env, PORT: String(catalogPort) }, stdio: "ignore", windowsHide: true, detached: process.platform !== "win32" });
   let catalogReady = false;
   for (let i = 0; i < 40; i++) {
     try { const response = await fetch(`${catalogUrl}/catalog`, { signal: AbortSignal.timeout(1000) }); await response.body?.cancel(); if (response.ok) { catalogReady = true; break; } } catch { /* finite startup polling */ }
@@ -183,11 +181,14 @@ try {
   }
   await verifyCompatibilityPackage({ root, temporary, tarball, nextProject, nextUrl, npm, cli, commands, evidence });
   assert((await stat(tarball)).size > 0);
-  await writeFile(path.join(evidenceDir, "latest.json"), JSON.stringify({ temporary, tarball, packageBytes: pack.size, files: pack.files.map((file) => file.path), evidence, commands, result: "PASS" }, null, 2));
-  console.log(`Package smoke PASS. Evidence: ${path.join(evidenceDir, "latest.json")}`);
+  completed = true;
 } finally {
-  await stop(nextServer);
-  await stop(catalogServer);
+  const cleanup = await Promise.allSettled([stopFixtureProcess(nextServer), stopFixtureProcess(catalogServer)]);
+  if (cleanup.some((result) => result.status === "rejected")) { console.error("Fixture process cleanup failed."); process.exitCode = 1; completed = false; }
   // Preserve external project configs, reports and tarball for inspection; never remove history.
   await writeFile(path.join(evidenceDir, "last-commands.json"), JSON.stringify({ temporary, commands }, null, 2));
+}
+if (completed) {
+  await writeFile(path.join(evidenceDir, "latest.json"), JSON.stringify({ temporary, tarball, packageBytes: pack.size, files: pack.files.map((file) => file.path), evidence, commands, result: "PASS" }, null, 2));
+  console.log(`Package smoke PASS. Evidence: ${path.join(evidenceDir, "latest.json")}`);
 }

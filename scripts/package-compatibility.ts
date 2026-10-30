@@ -8,6 +8,7 @@ import path from "node:path";
 import type { Assertion, FaultLaneConfigInput } from "../src/runner/config";
 import { runResultSchema, type RunResult } from "../src/runner/results";
 import { startTestApi } from "../examples/test-api/server";
+import { stopFixtureProcess } from "./fixture-process";
 
 const exec = promisify(execFile);
 type Command = { cwd: string; args: string[]; code: number };
@@ -110,8 +111,9 @@ export async function verifyCompatibilityPackage(context: PackageContext): Promi
   const port = address.port; await new Promise<void>((resolve) => portServer.close(() => resolve()));
   let vite: ChildProcess | undefined;
   const api = await startTestApi();
+  let primaryFailure: unknown;
   try {
-    vite = spawn(process.execPath, [path.join(reactProject, "node_modules/vite/bin/vite.js"), "--host", "127.0.0.1", "--port", String(port)], { cwd: reactProject, windowsHide: true, stdio: "ignore" });
+    vite = spawn(process.execPath, [path.join(reactProject, "node_modules/vite/bin/vite.js"), "--host", "127.0.0.1", "--port", String(port)], { cwd: reactProject, windowsHide: true, stdio: "ignore", detached: process.platform !== "win32" });
     const baseUrl = `http://127.0.0.1:${port}`; let ready = false;
     for (let index = 0; index < 80; index++) {
       if (vite.exitCode !== null) throw new Error("External Vite fixture exited before readiness.");
@@ -148,11 +150,14 @@ export async function verifyCompatibilityPackage(context: PackageContext): Promi
     assert.equal(api.requests.length, 0);
     await save(reactProject, config);
     console.log("Verified installed CLI on independent React/Vite cross-origin PASS / real UI FAIL / blocked-network ERROR; API server received zero requests.");
-  } finally {
-    api.server.closeAllConnections(); await new Promise<void>((resolve) => api.server.close(() => resolve()));
-    if (vite && vite.exitCode === null) {
-      if (process.platform === "win32") await exec("taskkill", ["/PID", String(vite.pid), "/T", "/F"], { windowsHide: true }).catch(() => undefined);
-      else vite.kill("SIGTERM");
-    }
+  } catch (error) { primaryFailure = error; }
+  finally {
+    const cleanup = await Promise.allSettled([
+      (async () => { api.server.closeAllConnections(); await new Promise<void>((resolve, reject) => api.server.close((error) => error ? reject(error) : resolve())); })(),
+      stopFixtureProcess(vite),
+    ]);
+    const failures = cleanup.filter((result): result is PromiseRejectedResult => result.status === "rejected").map((result) => result.reason as unknown);
+    if (failures.length) throw new AggregateError(primaryFailure === undefined ? failures : [primaryFailure, ...failures], "Fixture execution or cleanup failed.");
   }
+  if (primaryFailure !== undefined) throw primaryFailure;
 }

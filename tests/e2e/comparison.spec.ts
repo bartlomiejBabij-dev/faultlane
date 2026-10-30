@@ -4,6 +4,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { defineConfig } from "../../src/runner/config";
 import { runFaultLane } from "../../src/runner/browser";
 
@@ -55,8 +56,19 @@ test("real runs detect a regression and improvement, and failed evidence yields 
     catch (error) { const failure = error as { code: number; stdout: string }; expect(failure.code).toBe(2); bothOutput = failure.stdout; }
     const bothDir = bothOutput.match(/Report: (.+)/)?.[1]?.trim(); expect(bothDir).toBeTruthy();
     const both = JSON.parse(await readFile(path.join(bothDir!, "results.json"), "utf8")) as { results: { status: string; code: string; evidence: { status: string; failures: string[] } }[] };
-    expect(both.results[1]).toMatchObject({ status: "FAIL", code: "ASSERTION_FAILED", evidence: { status: "FAILED" } });
+    expect(both.results[1]).toMatchObject({ status: "FAIL", code: "ASSERTION_FAILED", evidence: { status: "FAILED", captureStatus: "SAVED", persistenceStatus: "FAILED" } });
     expect(both.results[1]?.evidence.failures.join(" ")).toContain("publish: EEXIST");
+    const preload = info.outputPath("synthetic-stalled-link.mjs");
+    await writeFile(preload, `import fs from "node:fs"; import { syncBuiltinESMExports } from "node:module"; const original = fs.promises.link; fs.promises.link = async (source, target) => String(target).endsWith("baseline-step-001.png") ? await new Promise(() => {}) : await original(source, target); syncBuiltinESMExports();`);
+    broken = false;
+    let timeoutOutput = "";
+    try { await exec(process.execPath, ["--import", "tsx", "--import", pathToFileURL(preload).href, cli, "run", "--config", configFile, "--scenario", "baseline"], { cwd: process.cwd(), timeout: 45_000 }); throw new Error("CLI unexpectedly succeeded"); }
+    catch (error) { const failure = error as { code: number; stdout: string; stderr: string }; expect(failure.code, failure.stderr).toBe(2); timeoutOutput = failure.stdout; }
+    expect(timeoutOutput).toContain("EVIDENCE_TIMEOUT");
+    expect(timeoutOutput).toContain("publish: TIMEOUT");
+    const timeoutDir = timeoutOutput.match(/Report: (.+)/)?.[1]?.trim(); expect(timeoutDir).toBeTruthy();
+    const timedOut = JSON.parse(await readFile(path.join(timeoutDir!, "results.json"), "utf8")) as { results: { status: string; evidence: { status: string; persistenceStatus: string } }[] };
+    expect(timedOut.results[0]).toMatchObject({ status: "ERROR", evidence: { status: "FAILED", persistenceStatus: "FAILED" } });
     const invalidOutput = info.outputPath("not-a-directory");
     await writeFile(invalidOutput, "preserved");
     await writeFile(configFile, `export default ${JSON.stringify({ ...input, reportsDir: invalidOutput })};`);

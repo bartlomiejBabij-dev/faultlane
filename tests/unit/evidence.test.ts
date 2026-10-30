@@ -48,8 +48,17 @@ describe("evidence persistence", () => {
   it("keeps behavioral FAIL and returns infrastructure exit 2 if capture fails too", () => {
     const result = { status: "FAIL", diagnostics: [] } as unknown as ScenarioResult;
     evidenceSaved(result); evidenceFailed(result, "scenario", new EvidenceIssue("capture", "PAGE_CLOSED")); evidenceSaved(result);
-    expect(result.status).toBe("FAIL"); expect(result.evidence).toEqual({ status: "FAILED", failures: ["scenario: capture: PAGE_CLOSED"] });
+    expect(result.status).toBe("FAIL"); expect(result.evidence).toEqual({ status: "FAILED", captureStatus: "FAILED", persistenceStatus: "SAVED", failures: ["scenario: [EVIDENCE_WRITE] capture: PAGE_CLOSED"] });
     expect(exitCode([result])).toBe(2);
+  });
+  it("distinguishes capture failure from persistence failure", () => {
+    const capture = { status: "FAIL", diagnostics: [] } as unknown as ScenarioResult;
+    evidenceFailed(capture, "scenario", new EvidenceIssue("capture", "TIMEOUT"));
+    expect(capture.evidence).toMatchObject({ status: "FAILED", captureStatus: "FAILED" });
+    const disk = { status: "FAIL", diagnostics: [] } as unknown as ScenarioResult;
+    evidenceFailed(disk, "scenario", new EvidenceIssue("write", "ENOSPC"));
+    expect(disk.evidence).toMatchObject({ status: "FAILED", captureStatus: "SAVED", persistenceStatus: "FAILED" });
+    expect(exitCode([capture, disk])).toBe(2);
   });
   it("never treats skipped required evidence as a successful run", () => {
     expect(exitCode([{ status: "PASS", evidence: { status: "SKIPPED", failures: [] } }])).toBe(2);
