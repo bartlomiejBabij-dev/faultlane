@@ -12,17 +12,17 @@ const init = {
   recovery: booleanOption, "delay-ms": stringOption, "reports-dir": stringOption, advanced: booleanOption, "from-json": stringOption,
 };
 const rawValue = z.union([z.string().max(2000), z.boolean()]);
-export type CliArguments = { command: "help" | "version" | "init" | "run" | "doctor" | "browsers"; values: Record<string, string | boolean | undefined> };
+export type CliArguments = { command: "help" | "version" | "init" | "run" | "doctor" | "browsers" | "compare"; values: Record<string, string | boolean | undefined> };
 export function parseCliArgs(argv: string[]): CliArguments {
   if (argv.length === 0) return { command: "help", values: {} };
   if (argv.length === 1 && ["--version", "-v"].includes(argv[0]!)) return { command: "version", values: {} };
   if (argv.every((arg) => ["--help", "-h", "--no-color"].includes(arg))) return { command: "help", values: {} };
-  const command = z.enum(["init", "run", "doctor", "browsers"]).parse(argv[0]);
+  const command = z.enum(["init", "run", "doctor", "browsers", "compare"]).parse(argv[0]);
   if (command === "browsers") {
     if (argv.length !== 2 || argv[1] !== "install") throw new Error("Use faultlane browsers install.");
     return { command, values: {} };
   }
-  const options = command === "init" ? init : command === "run" ? { ...common, scenario: stringOption } : common;
+  const options: Record<string, { type: "string" | "boolean" }> = command === "init" ? init : command === "run" ? { ...common, scenario: stringOption } : command === "compare" ? { base: stringOption, head: stringOption, help: booleanOption, "no-color": booleanOption } : common;
   const parsed = parseArgs({ args: argv.slice(1), options, strict: true, allowPositionals: false, tokens: true });
   const seen = new Set<string>();
   for (const token of parsed.tokens) if (token.kind === "option") {
@@ -31,6 +31,7 @@ export function parseCliArgs(argv: string[]): CliArguments {
   }
   const values = z.record(z.string(), rawValue).parse(parsed.values);
   if (values.scenario) scenarioIdSchema.parse(values.scenario);
+  if (command === "compare" && !values.help && (typeof values.base !== "string" || typeof values.head !== "string")) throw new Error("compare requires --base and --head.");
   return { command: values.help ? "help" : command, values };
 }
 
@@ -44,6 +45,7 @@ faultlane init --advanced --yes --from-json FILE
                                       Validate explicit JSON and write a typed config
 faultlane doctor [--config FILE]       Read-only environment and target checks
 faultlane run [--config FILE] [--scenario ID] [--no-color]
+faultlane compare --base FILE --head FILE [--no-color]
 faultlane browsers install             Explicitly download matching Chromium
 
 init options:
@@ -67,6 +69,7 @@ External API origins require mockOrigins permission; real external API forwardin
 Explicit asset rules permit only chosen origin/path/resource types, with no browser credentials.
 Advanced --from-json accepts the actual runtime configuration schema, including UI assertions.
 Exit codes: 0 = success / all PASS; 1 = UI FAIL; 2 = configuration / execution ERROR.
+Compare: 0 = no confirmed regressions; 1 = confirmed regression; 2 = invalid or incomparable input.
 Doctor: PASS / WARNING / ERROR; WARNING alone exits 0 and is not a test PASS.
 Config files execute trusted local TypeScript. No public npm release; use a local tarball/link.
 Colors: --no-color or NO_COLOR. No automatic browser download.`;

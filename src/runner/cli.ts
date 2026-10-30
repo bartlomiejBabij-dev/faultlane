@@ -11,6 +11,8 @@ import { initialize } from "./init";
 import { diagnose, supportedNode } from "./doctor";
 import { safeOutputPath } from "./paths";
 import { CliInputError } from "./cli-error";
+import { EvidenceIssue } from "./evidence";
+import { compareRuns, comparisonExitCode, inspectComparisonEvidence, readComparisonInput, writeComparison } from "./compare";
 
 declare const FAULTLANE_VERSION: string;
 function safeText(message: string): string { return message.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "").replace(/[\x00-\x08\x0b-\x1f\x7f]/g, ""); }
@@ -30,13 +32,26 @@ async function main(): Promise<number> {
     console.log(color ? clean.replace(/\b(PASS|FAIL|ERROR|WARNING)\b/g, (status) => "\x1b[" + (status === "PASS" ? 32 : status === "WARNING" ? 33 : 31) + "m" + status + "\x1b[0m") : clean);
   };
   try {
+    if (args.command === "compare") {
+      let comparison;
+      try {
+        const [base, head] = await Promise.all([readComparisonInput(path.resolve(String(args.values.base))), readComparisonInput(path.resolve(String(args.values.head)))]);
+        comparison = compareRuns(base, head);
+        await inspectComparisonEvidence(comparison, base, head, path.resolve(String(args.values.base)), path.resolve(String(args.values.head)));
+      } catch { console.error("ERROR Invalid, missing, oversized or incompatible comparison report input."); return 2; }
+      const directory = await writeComparison(await safeOutputPath("comparisons", process.cwd()), comparison);
+      log("FaultLane Regression Check\nBaseline: " + path.basename(String(args.values.base)) + "\nCurrent: " + path.basename(String(args.values.head)) + "\nScenarios analyzed: " + comparison.entries.length);
+      for (const entry of comparison.entries) log(`${entry.category} ${entry.id}: ${entry.base ?? "absent"} → ${entry.head ?? "absent"}${entry.reason ? ` · ${entry.reason}` : ""}`);
+      log("Comparison report: " + directory);
+      return comparisonExitCode(comparison);
+    }
     if (args.command === "doctor") {
       const checks = await diagnose(typeof args.values.config === "string" ? args.values.config : undefined);
       for (const check of checks) log(check.status.padEnd(7) + " " + check.name + ": " + check.message);
       log("Doctor checks setup only. It does not certify application behavior or API interception.");
       return checks.some((check) => check.status === "ERROR") ? 2 : 0;
     }
-    if (!supportedNode(process.versions.node)) { log("ERROR Unsupported Node.js. Use 22.13+, 24.x or 26.x."); return 2; }
+    if (!supportedNode(process.versions.node)) { console.error("ERROR Unsupported Node.js. Use 22.13+, 24.x or 26.x."); return 2; }
     if (args.command === "browsers") {
       const require = createRequire(import.meta.url);
       const installer = require.resolve("@playwright/test/cli");
@@ -60,6 +75,7 @@ async function main(): Promise<number> {
         log(result.status.padEnd(5) + " " + result.id.padEnd(10) + " " + result.durationMs + " ms · observed " + result.observedRequests + " / intercepted " + result.interceptedRequests + " / faulted " + result.faultedRequests + "\n      " + (result.code ? "[" + result.code + "] " : "") + result.observation + (result.failedStep ? " (step " + result.failedStep + ")" : ""));
         log("      Verified UI assertions: " + result.assertions.filter((a) => a.passed).length + "/" + result.assertions.length + "; step screenshots saved: " + (result.steps?.filter((s) => s.screenshot).length ?? 0) + ".");
         if (result.status !== "PASS") log("      " + result.suggestion);
+        if (result.evidence) { log("      Evidence: " + result.evidence.status); for (const failure of result.evidence.failures) log("      Evidence error: " + failure); }
         for (const endpoint of result.endpoints ?? []) log(`      ${endpoint.id}: ${endpoint.method} ${endpoint.origin}${endpoint.pathname} · observed ${endpoint.observedRequests} / intercepted ${endpoint.interceptedRequests} / expected ${endpoint.expectedRequests} / blocked ${endpoint.blockedRequests}`);
         if (result.network) {
           log(`      Network: ${result.network.mockedRequests} mocked / ${result.network.allowedRequests} explicitly allowed / ${result.network.blockedRequests} blocked. Query values and headers omitted.`);
@@ -73,9 +89,10 @@ async function main(): Promise<number> {
     if (counts.error) log("For environment checks run: faultlane doctor. Missing Chromium: faultlane browsers install.");
     return exitCode(run.results);
   } catch (error) {
-    if (error instanceof ZodError) log("ERROR Invalid configuration or setup values:\n" + error.issues.map((issue) => "- " + issue.path.join(".") + ": " + issue.message).join("\n") + "\nUse faultlane --help. Explicit positive UI expectations are required.");
-    else if (error instanceof CliInputError) log("ERROR " + error.message);
-    else log("ERROR Could not complete the command. Check the trusted config path/default export, configured scenario and local report permissions. Use faultlane doctor. No successful run is claimed.");
+    if (error instanceof ZodError) console.error(safeText("ERROR Invalid configuration or setup values:\n" + error.issues.map((issue) => "- " + issue.path.join(".") + ": " + issue.message).join("\n") + "\nUse faultlane --help. Explicit positive UI expectations are required."));
+    else if (error instanceof CliInputError) console.error(safeText("ERROR " + error.message));
+    else if (error instanceof EvidenceIssue) console.error("ERROR Evidence/report " + safeText(error.message) + ". No successful run is claimed.");
+    else console.error("ERROR Could not complete the command. Check the trusted config path/default export, configured scenario and local report permissions. Use faultlane doctor. No successful run is claimed.");
     return 2;
   }
 }

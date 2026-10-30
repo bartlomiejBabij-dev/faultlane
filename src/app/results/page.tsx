@@ -5,6 +5,8 @@ import { listReports } from "@/lib/report-store";
 import { summarize, type ScenarioResult } from "@/runner/results";
 import { scenarioLabels } from "@/runner/scenarios";
 import { NetworkDetails } from "./network-details";
+import path from "node:path";
+import { compareRuns, inspectComparisonEvidence } from "@/runner/compare";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -16,6 +18,8 @@ function ScenarioDetails({ result, runId }: { result: ScenarioResult; runId: str
   return <details className="scenario" open={result.status !== "PASS"} suppressHydrationWarning>
     <summary><span className="scenario-name">{scenarioLabels[result.id]}</span><span className="scenario-duration">{(result.durationMs / 1000).toFixed(1)}s</span><span className={`status ${result.status.toLowerCase()}`}>{result.status === "PASS" ? "✓" : "!"} {result.status}</span></summary>
     <div className="scenario-body"><h3>{result.name ?? "Observed behavior"}</h3><p className="text-xs">{result.observation}</p>
+      <p className="muted">Behavior: {result.status === "FAIL" ? "FAIL · UI expectation" : result.status === "ERROR" ? "ERROR · execution or infrastructure" : "PASS"} · Evidence: {result.evidence?.status ?? "not recorded in this report"} · Screenshot: {result.screenshot ? "recorded (file may have been removed)" : "not recorded"}</p>
+      {result.evidence?.failures.map((failure) => <p className="text-xs" key={failure}>Evidence error: {failure}</p>)}
       <div className="request-metrics"><span>Observed <strong>{result.observedRequests ?? "not recorded (v0.1)"}</strong></span><span>Intercepted <strong>{result.interceptedRequests}</strong></span><span>Faulted <strong>{result.faultedRequests ?? "not recorded (v0.1)"}</strong></span></div>
       {result.code && <p className="muted"><code>{result.code}</code>{result.failedStep ? ` · Stopped at step ${result.failedStep}` : ""}</p>}
       <ul className="assertion-list">{result.assertions.map((assertion, i) => <li key={i}><span className={assertion.passed ? "text-lime-300" : "text-red-300"}>{assertion.passed ? "✓" : "✕"}</span> {assertion.observed} <span className="muted">({assertion.phase})</span></li>)}</ul>
@@ -38,10 +42,18 @@ export default async function ResultsPage() {
   const counts = summarize(results);
   const latestCounts = summarize(latest?.results ?? []);
   const lastError = latest?.results.find((result) => result.status !== "PASS");
+  let comparison;
+  try {
+    if (latest && runs[1]) {
+      comparison = compareRuns(runs[1], latest);
+      await inspectComparisonEvidence(comparison, runs[1], latest, path.join(config.reportsDir, runs[1].id, "results.json"), path.join(config.reportsDir, latest.id, "results.json"));
+    }
+  } catch { comparison = undefined; }
   return <>
     <div className="eyebrow">RESILIENCE, VERIFIED</div>
     <div className="page-heading"><div><h1>Find failures first<span className="accent">.</span></h1><p>Real browser checks. Clear expectations. Evidence you can act on.</p></div><Link href="/demo" className="button">Open demo <span>↗</span></Link></div>
     {latest && <section className="panel latest-run" data-testid="latest-run"><div className="eyebrow">LATEST COMPLETED RUN</div><h2>{latest.name ?? "Legacy v0.1 run"}</h2><p>{latest.application}</p><div className="latest-counts"><span className="status pass">{latestCounts.pass} PASS</span><span className="status fail">{latestCounts.fail} FAIL</span><span className="status error">{latestCounts.error} ERROR</span><span className="muted">{(latest.durationMs / 1000).toFixed(1)}s · <time dateTime={latest.startedAt}>{new Date(latest.startedAt).toLocaleString("en-GB", { timeZone: "UTC" })} UTC</time></span></div><code>{latest.id}</code></section>}
+    {comparison && <section className="panel latest-run"><div className="eyebrow">LATEST RUN COMPARISON</div><h2>Compared with previous run</h2><p>Only scenarios with the same recorded identity are comparable.</p><ul>{comparison.entries.map((entry) => <li key={entry.id}><strong>{entry.category}</strong> · {entry.id} · {entry.base ?? "absent"} → {entry.head ?? "absent"}{entry.reason && ` · ${entry.reason}`}<span className="muted"> · Screenshots: {entry.baseScreenshot} → {entry.headScreenshot}</span></li>)}</ul><a className="text-link" href={`/api/comparison/${comparison.baseRun}/${comparison.headRun}`}>Comparison Markdown ↓</a></section>}
     <div className="section-heading"><h2>Historical totals</h2><span className="muted">Earlier runs only · latest run excluded</span></div>
     <div className="stats" data-testid="historical-totals"><section className="panel stat"><span className="muted">Earlier runs</span><div className="value">{Math.max(0, runs.length - 1)}</div><small>Within the most recent 100</small></section><section className="panel stat"><span className="muted">Historical passes</span><div className="value text-lime-300">{counts.pass}</div><small>Past expectations verified</small></section><section className="panel stat"><span className="muted">Historical failures</span><div className="value text-red-300">{counts.fail}</div><small>Includes intentional defects</small></section><section className="panel stat"><span className="muted">Historical errors</span><div className="value text-amber-200">{counts.error}</div><small>Preserved, not current errors</small></section></div>
     {unavailable && <div role="alert" className="notice warning">The report directory cannot be read. Check its local permissions.</div>}

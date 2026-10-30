@@ -1,5 +1,21 @@
 import { expect, test } from "@playwright/test";
 
+test("manual loading cannot be clicked before hydration and works afterwards", async ({ browser, page }, info) => {
+  const noJavaScript = await browser.newContext({ javaScriptEnabled: false });
+  try {
+    const unhydrated = await noJavaScript.newPage();
+    await unhydrated.goto(new URL("/demo?mode=manual", String(info.project.use.baseURL)).href);
+    await expect(unhydrated.getByRole("button", { name: "Load Projects" })).toBeDisabled();
+  } finally { await noJavaScript.close(); }
+  await page.goto("/demo?mode=manual");
+  const button = page.getByRole("button", { name: "Load Projects" });
+  await expect(button).toBeEnabled();
+  const request = page.waitForRequest((item) => item.url().includes("/api/demo/projects") && item.method() === "GET");
+  await button.click();
+  await request;
+  await expect(page.getByTestId("projects")).toContainText("Atlas API");
+});
+
 test("HTTP 500 shows an error, clears loading and can recover on retry", async ({ page }) => {
   let intercepted = 0;
   await page.route("**/api/demo/projects", async (route) => {

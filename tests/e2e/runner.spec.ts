@@ -84,6 +84,15 @@ test("results dashboard serves reports, validates paths and fits mobile", async 
   await expect(latestPanel).toContainText(`${latestCounts.error} ERROR`);
   const { runs } = await listReports(config.reportsDir);
   expect(runs[0]?.id).toBe(latest.id);
+  expect(runs.length).toBeGreaterThanOrEqual(2);
+  const comparisonLink = page.getByRole("link", { name: "Comparison Markdown ↓" });
+  await expect(comparisonLink).toBeVisible();
+  const comparisonResponse = await request.get((await comparisonLink.getAttribute("href"))!);
+  expect(comparisonResponse.status()).toBe(200);
+  const comparisonText = await comparisonResponse.text();
+  expect(comparisonText).toContain(latest.id);
+  expect(comparisonText).toContain(runs[1]!.id);
+  expect(await request.get("/api/comparison/invalid/invalid").then((response) => response.status())).toBe(404);
   const history = summarize(runs.slice(1).flatMap((run) => run.results));
   const historyPanel = page.getByTestId("historical-totals");
   await expect(historyPanel.locator("section").filter({ hasText: "Historical passes" }).locator(".value")).toHaveText(String(history.pass));

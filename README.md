@@ -1,6 +1,8 @@
-# FaultLane v0.4
+# FaultLane v0.5
 
 **Find failures before users do.** Lokalne narzędzie do sprawdzania, jak interfejs aplikacji reaguje na awarie API. Uruchamia prawdziwe Chromium, przechwytuje żądanie z przeglądarki, wykonuje jawne asercje Playwright i zapisuje raport wraz ze zrzutami ekranu.
+
+Porównanie dwóch wyników: `faultlane compare --base reports/ID_1/results.json --head reports/ID_2/results.json`. Raport porównania powstaje w osobnym katalogu `comparisons/`; starsze przebiegi bez tożsamości scenariusza są oznaczane jako nieporównywalne. Szczegóły i kody: [porównanie](docs/regression-comparison.md), [CI](docs/ci-integration.md), [lista bety](docs/beta-checklist.md).
 
 To działające MVP: brak kont, chmury, płatnych API i automatycznego skanowania. Panel pokazuje wyłącznie wyniki odczytane z dysku.
 
@@ -16,7 +18,7 @@ npm ci
 npm run build:cli
 npm pack
 # W katalogu własnej aplikacji (podaj rzeczywistą lokalną ścieżkę):
-npm install --save-dev "/sciezka/do/faultlane-0.4.0.tgz"
+npm install --save-dev "/sciezka/do/faultlane-0.5.0.tgz"
 npm exec --no -- faultlane init
 npm exec --no -- faultlane doctor
 # Jeżeli Chromium jest nieobecne: npm exec --no -- faultlane browsers install

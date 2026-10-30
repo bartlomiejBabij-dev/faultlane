@@ -62,6 +62,7 @@ const pack = packResult(await npm(["pack", "--dry-run", "--ignore-scripts", "--j
 assert(pack.files.some((file) => file.path === "dist/cli.js"));
 assert(pack.files.some((file) => file.path === "dist/config.d.ts"));
 assert(pack.files.every((file) => !/^(src|reports|\.next|node_modules|examples)\//.test(file.path)), "Package must exclude dashboard, source and reports");
+assert(pack.files.every((file) => !/(^|\/)(?:\.env[^/]*|\.git|reports|comparisons|playwright-report|test-results)(?:\/|$)/i.test(file.path) && !/\.png$/i.test(file.path)), "Package must exclude private environment files, reports and screenshots");
 await npm(["pack", "--ignore-scripts", "--pack-destination", temporary, "--json"], root);
 const tarball = path.join(temporary, pack.filename);
 const nextProject = path.join(temporary, "next app");
@@ -78,7 +79,7 @@ let catalogServer: ChildProcess | undefined;
 const evidence: { app: string; directory: string; statuses: string[] }[] = [];
 try {
   for (const project of [nextProject, catalogProject]) {
-    await npm(["install", "--offline", "--ignore-scripts", "--no-audit", "--no-fund", "--save-dev", tarball], project);
+    await npm(["install", "--prefer-offline", "--ignore-scripts", "--no-audit", "--no-fund", "--save-dev", tarball], project);
     assert((await cli(project, ["--help"])).includes("faultlane init"));
     assert.equal((await cli(project, ["--version"])).trim(), packageVersion);
     const installed = path.join(project, "node_modules/faultlane");

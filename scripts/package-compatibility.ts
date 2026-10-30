@@ -79,6 +79,10 @@ export async function verifyCompatibilityPackage(context: PackageContext): Promi
   assert(!(await cli(nextProject, ["doctor", "--config", "compatibility.config.ts", "--no-color"])).includes("ERROR"));
   const nextPass = await readReport(await cli(nextProject, ["run", "--config", "compatibility.config.ts", "--no-color"]), nextProject);
   assert.deepEqual(nextPass.run.results.map((result) => result.status), ["PASS", "PASS"]);
+  const sameReport = path.join(nextPass.directory, "results.json");
+  const sameComparison = await direct(nextProject, ["compare", "--base", sameReport, "--head", sameReport, "--no-color"], 0);
+  assert(sameComparison.includes("UNCHANGED"));
+  await direct(nextProject, ["compare", "--base", "missing.json", "--head", sameReport], 2);
   const projectEndpoint = nextPass.run.results[1]!.endpoints!.find((endpoint) => endpoint.id === "projects")!;
   assert.deepEqual(projectEndpoint.requests.map((request) => [request.outcome, request.status]), [["simulated", 500], ["forwarded", 200]]);
   for (const id of ["profile", "notifications"]) assert.equal(nextPass.run.results[1]!.endpoints!.find((endpoint) => endpoint.id === id)?.interceptedRequests, 1);
@@ -99,7 +103,7 @@ export async function verifyCompatibilityPackage(context: PackageContext): Promi
 
   const reactProject = path.join(temporary, "react app"); await mkdir(reactProject);
   for (const filename of ["index.html", "package.json", "tsconfig.json", "src"]) await cp(path.join(root, "examples/react-board", filename), path.join(reactProject, filename), { recursive: true });
-  await npm(["install", "--offline", "--ignore-scripts", "--no-audit", "--no-fund", "--save-dev", tarball], reactProject);
+  await npm(["install", "--prefer-offline", "--ignore-scripts", "--no-audit", "--no-fund", "--save-dev", tarball], reactProject);
   assert((await cli(reactProject, ["--help"])).includes("faultlane run"));
   const portServer = createServer(); await new Promise<void>((resolve) => portServer.listen(0, "127.0.0.1", resolve));
   const address = portServer.address(); assert(address && typeof address !== "string");

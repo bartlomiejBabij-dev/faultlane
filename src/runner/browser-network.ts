@@ -11,7 +11,8 @@ import { RunnerIssue } from "./errors";
 import { forwardLocal, scenarioLabels } from "./scenarios";
 import { describeAction, executeAction, navigateLocal } from "./actions";
 import { checkAssertions, describeAssertion } from "./assertions";
-import { captureEvidence, executeSteps, type PlannedStep } from "./steps";
+import { captureEvidence, evidenceFailed, evidenceSaved, executeSteps, type PlannedStep } from "./steps";
+import { EvidenceIssue, evidenceReason } from "./evidence";
 
 export function emptyNetworkSummary(): NetworkSummary {
   return {
@@ -33,7 +34,7 @@ export function emptyNetworkResult(config: FaultLaneConfig, scenario: Scenario):
     id: scenario.id, name: scenario.name ?? scenarioLabels[scenario.id], status: "ERROR", code: null, durationMs: 0,
     observedRequests: 0, interceptedRequests: 0, faultedRequests: 0, requests: [], steps: [], failedStep: null, assertions: [],
     observation: "Scenario did not finish.", suggestion: "Check the local application, configured endpoints and browser installation.",
-    screenshot: null, loadingScreenshot: null, diagnostics: [], endpoints: tracker.summary(), network,
+    screenshot: null, loadingScreenshot: null, diagnostics: [], evidence: { status: "SKIPPED", failures: [] }, endpoints: tracker.summary(), network,
   };
 }
 
@@ -230,7 +231,7 @@ export async function executeNetworkScenario(browser: Browser, config: FaultLane
         catch { checkHealth(); throw new RunnerIssue("ERROR", "API_NOT_OBSERVED", "No configured delayed browser request was intercepted."); }
       } });
       addAssertions(scenario.duringDelay, "during-delay", "fault");
-      plan.push({ phase: "fault", expected: "Capture the loading state during the simulated delay", run: async () => { await captureEvidence(activePage, path.join(directory, "slow-loading.png"), config); result.loadingScreenshot = "slow-loading.png"; } });
+      plan.push({ phase: "fault", expected: "Capture the loading state during the simulated delay", run: async () => { try { await captureEvidence(activePage, path.join(directory, "slow-loading.png"), config); evidenceSaved(result); result.loadingScreenshot = "slow-loading.png"; } catch (error) { evidenceFailed(result, "loading", error); throw new RunnerIssue("ERROR", "EVIDENCE_WRITE", `Loading screenshot failed: ${evidenceReason(error)}.`); } } });
     }
     plan.push({ phase: "fault", expected: "Complete required per-endpoint requests and fault responses", run: async () => {
       await Promise.all([...tracker.states.entries()].map(([id, state]) => {
@@ -262,9 +263,9 @@ export async function executeNetworkScenario(browser: Browser, config: FaultLane
     if (timer) clearTimeout(timer);
     if (page && !page.isClosed()) {
       const filename = `${scenario.id}${result.status === "PASS" ? "" : "-failure"}.png`;
-      try { await captureEvidence(page, path.join(directory, filename), config); result.screenshot = filename; }
-      catch { if (result.status === "PASS") { result.status = "ERROR"; result.code = "EVIDENCE_WRITE"; result.observation = "Required screenshot evidence could not be saved."; } }
-    }
+      try { await captureEvidence(page, path.join(directory, filename), config); result.screenshot = filename; evidenceSaved(result); }
+      catch (error) { evidenceFailed(result, "scenario", error); if (result.diagnostics.length < 10) result.diagnostics.push(`Scenario screenshot failed: ${evidenceReason(error)}.`); if (result.status === "PASS") { result.status = "ERROR"; result.code = "EVIDENCE_WRITE"; result.observation = "Required screenshot evidence could not be saved."; } }
+    } else if (page) evidenceFailed(result, "scenario", new EvidenceIssue("capture", "PAGE_CLOSED"));
     controller.abort(); await context?.close().catch(() => undefined);
     if (result.status === "PASS") {
       try {

@@ -7,6 +7,7 @@ export const runIdPattern = /^\d{8}T\d{9}Z-[a-f0-9]{8}$/;
 export const assertionResultSchema = z.object({ expected: z.string().max(1000), observed: z.string().max(1500), passed: z.boolean(), phase: z.enum(["during-delay", "after-response", "action", "recovery"]) });
 export type AssertionResult = z.infer<typeof assertionResultSchema>;
 export const evidencePattern = /^(baseline|http-500|http-429|slow|network|empty)(-failure|-loading|-step-\d{3})?\.png$/;
+export const evidenceStateSchema = z.object({ status: z.enum(["SAVED", "SKIPPED", "FAILED"]), failures: z.array(z.string().max(200)).max(20) }).strict();
 export const stepResultSchema = z.object({ index: z.number().int().min(1).max(300), phase: z.enum(["setup", "action", "fault", "recovery"]), expected: z.string().max(1000), observed: z.string().max(1500), status: z.enum(["PASS", "FAIL", "ERROR", "SKIPPED"]), durationMs: z.number().nonnegative(), screenshot: z.string().regex(evidencePattern).nullable(), code: z.string().max(80).nullable() });
 export type StepResult = z.infer<typeof stepResultSchema>;
 export const requestResultSchema = z.object({ ordinal: z.number().int().positive(), phase: z.enum(["fault", "recovery", "baseline"]), outcome: z.enum(["pending", "simulated", "forwarded", "aborted", "blocked", "error"]), status: z.number().int().min(100).max(599).nullable() });
@@ -62,6 +63,8 @@ export const scenarioResultSchema = z.object({
   screenshot: z.string().regex(evidencePattern).nullable(),
   loadingScreenshot: z.literal("slow-loading.png").nullable(),
   diagnostics: z.array(z.string().max(500)).max(10),
+  evidence: evidenceStateSchema.optional(),
+  identity: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   endpoints: z.array(endpointResultSchema).min(1).max(20).optional(),
   network: networkSummarySchema.optional(),
 });
@@ -82,8 +85,8 @@ export const runResultSchema = z.object({
   }
 });
 export type RunResult = z.infer<typeof runResultSchema>;
-export function exitCode(results: Pick<ScenarioResult, "status">[]): 0 | 1 | 2 {
-  if (results.length === 0 || results.some((result) => result.status === "ERROR")) return 2;
+export function exitCode(results: (Pick<ScenarioResult, "status"> & Partial<Pick<ScenarioResult, "evidence">>)[]): 0 | 1 | 2 {
+  if (results.length === 0 || results.some((result) => result.status === "ERROR" || (result.evidence !== undefined && result.evidence.status !== "SAVED"))) return 2;
   return results.some((result) => result.status === "FAIL") ? 1 : 0;
 }
 export function summarize(results: Pick<ScenarioResult, "status">[]) {

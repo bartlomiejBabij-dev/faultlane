@@ -1,7 +1,7 @@
-import { mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { type RunResult, type ScenarioResult, summarize } from "./results";
 import { scenarioLabels } from "./scenarios";
+import { EvidenceIssue, writeExclusiveFile } from "./evidence";
 
 const escape = (value: string) => value.replace(/[\\`*_{}[\]()<>|#!]/g, "\\$&").replace(/[\r\n]+/g, " ");
 function endpointEvidence(result: ScenarioResult): string[] {
@@ -62,6 +62,10 @@ export function markdownReport(run: RunResult): string {
     lines.push(...endpointEvidence(result));
     lines.push("", `**Suggested inspection (not a proven root cause):** ${escape(result.suggestion)}`, "");
     for (const diagnostic of result.diagnostics) lines.push(`- Diagnostic: ${escape(diagnostic)}`);
+    if (result.evidence) {
+      lines.push(`- Evidence: ${result.evidence.status}`);
+      for (const failure of result.evidence.failures) lines.push(`- Evidence failure: ${escape(failure)}`);
+    }
     if (result.screenshot) lines.push("", `[${result.status === "PASS" ? "Scenario" : "Failure"} screenshot](./${result.screenshot})`);
     if (result.loadingScreenshot) lines.push("", `[Loading during delay](./${result.loadingScreenshot})`);
     lines.push("");
@@ -71,10 +75,11 @@ export function markdownReport(run: RunResult): string {
 }
 
 export async function writeReport(directory: string, run: RunResult) {
-  await mkdir(directory, { recursive: true });
-  await writeFile(path.join(directory, "report.md.tmp"), markdownReport(run), "utf8");
-  await rename(path.join(directory, "report.md.tmp"), path.join(directory, "report.md"));
+  let json: string;
+  let markdown: string;
+  try { json = JSON.stringify(run, null, 2) + "\n"; markdown = markdownReport(run); }
+  catch { throw new EvidenceIssue("report-serialize", "SERIALIZATION_FAILED"); }
+  await writeExclusiveFile(path.join(directory, "report.md"), Buffer.from(markdown));
   // JSON is the commit marker: the dashboard lists only completed, validated runs.
-  await writeFile(path.join(directory, "results.json.tmp"), JSON.stringify(run, null, 2) + "\n", "utf8");
-  await rename(path.join(directory, "results.json.tmp"), path.join(directory, "results.json"));
+  await writeExclusiveFile(path.join(directory, "results.json"), Buffer.from(json));
 }

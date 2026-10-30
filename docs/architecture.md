@@ -1,8 +1,14 @@
 # Architektura
 
+## Dowody i porównanie
+
+Zrzut jest pobierany przed zamknięciem kontekstu, zapisywany do unikalnego pliku tymczasowego, sprawdzany i atomowo publikowany przez hard link bez nadpisania istniejącego pliku. Raporty JSON i Markdown są publikowane osobno tą samą metodą; JSON pozostaje znacznikiem ukończonego przebiegu. Wymagany jest lokalny system plików obsługujący hard linki. Po błędach runner próbuje usunąć własny plik tymczasowy; awaria usuwania może go pozostawić. Nie ma ukrytego ponawiania. Zapis nie stanowi transakcji obejmującej oba pliki ani gwarancji przeżycia utraty zasilania.
+
+Wynik scenariusza i `evidence` są osobne. Błąd UI wraz z błędem zrzutu zachowuje FAIL i szczegóły dowodu; proces zwraca 2. Diagnostyka zawiera etap i ograniczony kod, bez surowych wyjątków aplikacji, ścieżek, nagłówków i stosów. Porównanie bazuje na skrócie pełnej istotnej konfiguracji scenariusza, nie na nazwie. Raporty bez skrótu nie są automatycznie uznawane za równoważne. Szczegóły: [porównanie](regression-comparison.md) i [CI](ci-integration.md).
+
 FaultLane jest pojedynczym projektem npm, ale runner nie zależy od procesu Next.js. CLI może testować inną lokalną aplikację, jeśli spełnia ograniczenia opisane w konfiguracji.
 
-## Dystrybucja CLI v0.4
+## Dystrybucja CLI
 
 `package.json.bin` wskazuje `dist/cli.js` z shebang Node. `build:cli` używa esbuild do kompilacji własnego kodu i TypeScript do deklaracji typów. Runtime zależy od `@playwright/test`, `tsx` i `zod`; Next.js/React są zależnościami developerskimi panelu i przykładu. Pole `files` ogranicza tarball do `dist`, dokumentacji i README. `prepack` buduje dystrybucję. `private: true` chroni przed przypadkową publikacją; brak monorepo i instalacyjnego pobierania Chromium.
 

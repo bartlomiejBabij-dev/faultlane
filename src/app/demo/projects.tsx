@@ -1,12 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 type Project = { id: string; name: string; description: string; language: string; owner: string; status: string };
 export type DemoBug = "http-500" | "retry-no-request" | "recovery-error" | "recovery-loading" | undefined;
 type State = { kind: "idle" | "loading" } | { kind: "success"; projects: Project[]; staleError: boolean; stuck: boolean } | { kind: "error"; code: "server" | "rate-limit" | "network"; message: string; stuck: boolean };
+const subscribeToHydration = () => () => {};
+const clientReady = () => true;
+const serverReady = () => false;
 
 export function DemoProjects({ broken, manual = false }: { broken: DemoBug; manual?: boolean }) {
+  const hydrated = useSyncExternalStore(subscribeToHydration, clientReady, serverReady);
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<State>({ kind: manual ? "idle" : "loading" });
   useEffect(() => {
@@ -36,7 +40,7 @@ export function DemoProjects({ broken, manual = false }: { broken: DemoBug; manu
   const load = () => { setState({ kind: "loading" }); setAttempt((n) => n + 1); };
   return <section className="panel project-panel" aria-label="Projects">
     <div className="panel-heading"><h2>Project directory</h2><span className="muted">{state.kind === "success" ? `${state.projects.length} projects` : "Live API response"}</span></div>
-    {state.kind === "idle" && <div className="state-box" data-testid="idle"><span className="state-symbol">◇</span><h3>Ready to load your projects</h3><p>No request has been made. Start the journey when you’re ready.</p><button onClick={load}>Load Projects</button></div>}
+    {state.kind === "idle" && <div className="state-box" data-testid="idle"><span className="state-symbol">◇</span><h3>Ready to load your projects</h3><p>No request has been made. Start the journey when you’re ready.</p><button onClick={load} disabled={!hydrated}>Load Projects</button></div>}
     {loading && <div className="state-box" data-testid="loading" role="status"><span className="spinner" /><h3>Loading your projects…</h3><p>Connecting to your workspace.</p></div>}
     {state.kind === "error" && <div className="state-box error-state" role="alert" aria-label="Project error" data-testid="error"><span className="state-symbol">!</span><h3 data-testid={state.code}>{state.message}</h3><p>Your workspace is safe. You can retry this request.</p><button aria-label="Retry" data-testid="retry" onClick={() => { if (broken !== "retry-no-request") load(); }}><span aria-hidden="true">↻</span> <span>Retry</span></button></div>}
     {state.kind === "success" && state.staleError && <div role="alert" aria-label="Project error" data-testid="error" className="notice warning">We couldn’t load your projects. Please try again.</div>}

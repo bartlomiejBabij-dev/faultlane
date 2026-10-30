@@ -1,0 +1,40 @@
+# Szablon: skopiuj do .github/workflows, przygotuj lokalny tarball i start:ci.
+name: FaultLane
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  reliability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # Umieść zatwierdzony tarball w tym miejscu; FaultLane nie jest w publicznym npm.
+      - run: npm install --no-save --ignore-scripts ./vendor/faultlane-local.tgz
+      - run: npx --no-install playwright install --with-deps chromium
+      - name: Uruchom lokalną aplikację i FaultLane
+        shell: bash
+        run: |
+          set -euo pipefail
+          setsid npm run start:ci > /dev/null 2>&1 &
+          app_pid=$!
+          trap 'kill -- -"$app_pid" 2>/dev/null || true; wait "$app_pid" 2>/dev/null || true' EXIT
+          ready=0
+          for i in {1..60}; do
+            if curl --fail --silent --max-time 1 http://127.0.0.1:3000/ > /dev/null; then ready=1; break; fi
+            if ! kill -0 "$app_pid" 2>/dev/null; then echo 'Serwer zakończył pracę.' >&2; exit 2; fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then echo 'Serwer nie wystartował w 60 s.' >&2; exit 2; fi
+          npm exec --no -- faultlane doctor --no-color
+          npm exec --no -- faultlane run --no-color
