@@ -11,7 +11,7 @@ export class RequestTracker {
   recovering = false;
   issue?: RunnerIssue;
   records: RequestResult[] = [];
-  private readonly watched = new Map<string, { request: FaultLaneConfig["api"]; count: number }>();
+  private readonly watched = new Map<string, { request: Extract<Action, { type: "waitForRequest" }>["request"]; count: number }>();
   readonly limit: number;
   readonly affected: number;
   constructor(private readonly config: FaultLaneConfig, private readonly scenario: Scenario, actions: Action[]) {
@@ -20,7 +20,7 @@ export class RequestTracker {
     for (const action of actions) if (action.type === "waitForRequest") this.watched.set(JSON.stringify(action.request), { request: action.request, count: 0 });
   }
   matches(url: string, method: string) {
-    return new URL(url).origin === new URL(this.config.baseUrl).origin && method === this.config.api.method && matchesApi(url, this.config.api);
+    return !!this.config.api && new URL(url).origin === new URL(this.config.baseUrl).origin && method === this.config.api.method && matchesApi(url, this.config.api);
   }
   observe(url: string, method: string) {
     if (new URL(url).origin !== new URL(this.config.baseUrl).origin) return;

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { endpointMatcherSchema } from "./endpoint-schema";
 
 export const testIdSchema = z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/);
 const text = z.string().min(1).max(300);
@@ -33,7 +34,7 @@ export const actionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("waitForElement"), locator: locatorSchema, state: z.enum(["visible", "hidden"]).default("visible"), ...actionFields }).strict(),
   // The listener is armed before navigation. Occurrence is absolute within the scenario,
   // so a fast request between click and wait cannot be missed.
-  z.object({ type: z.literal("waitForRequest"), request: apiSchema, occurrence: z.number().int().min(1).max(30).default(1), ...actionFields }).strict(),
+  z.object({ type: z.literal("waitForRequest"), request: z.union([apiSchema, endpointMatcherSchema]), occurrence: z.number().int().min(1).max(30).default(1), ...actionFields }).strict(),
   z.object({ type: z.literal("assert"), assertion: assertionSchema, ...actionFields }).strict(),
 ]);
 export type Action = z.infer<typeof actionSchema>;

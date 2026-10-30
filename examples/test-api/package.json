@@ -1,0 +1,7 @@
+{
+  "name": "faultlane-synthetic-rest-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "tsx start.ts" },
+  "devDependencies": { "tsx": "^4.23.15" }
+}

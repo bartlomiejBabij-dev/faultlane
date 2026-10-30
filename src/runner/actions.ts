@@ -12,7 +12,7 @@ export function describeAction(action: Action): string {
     case "click": return `Click ${describeLocator(action.locator)}`;
     case "fill": return `Fill ${describeLocator(action.locator)} (value omitted)`;
     case "waitForElement": return `Wait for ${describeLocator(action.locator)} to be ${action.state}`;
-    case "waitForRequest": return `Observe GET ${action.request.pathname}, occurrence ${action.occurrence}`;
+    case "waitForRequest": return `Observe ${action.request.method} ${action.request.pathname}, occurrence ${action.occurrence}`;
     case "assert": return describeAssertion(action.assertion);
   }
 }

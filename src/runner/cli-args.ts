@@ -9,7 +9,7 @@ const init = {
   ...common, yes: booleanOption, backup: booleanOption, url: stringOption, page: stringOption, api: stringOption, failure: stringOption,
   trigger: stringOption, "click-role": stringOption, "click-name": stringOption, "success-locator": stringOption, "success-text": stringOption,
   "failure-locator": stringOption, "failure-text": stringOption, "loading-locator": stringOption, "retry-name": stringOption,
-  recovery: booleanOption, "delay-ms": stringOption, "reports-dir": stringOption,
+  recovery: booleanOption, "delay-ms": stringOption, "reports-dir": stringOption, advanced: booleanOption, "from-json": stringOption,
 };
 const rawValue = z.union([z.string().max(2000), z.boolean()]);
 export type CliArguments = { command: "help" | "version" | "init" | "run" | "doctor" | "browsers"; values: Record<string, string | boolean | undefined> };
@@ -39,6 +39,9 @@ export const cliHelp = `FaultLane — local browser API failure tests
 faultlane --help | --version
 faultlane init                         Interactive setup in your application directory
 faultlane init --yes [options]         No prompts; explicit expectations required
+faultlane init --advanced              Guided endpoints, permissions and sequences
+faultlane init --advanced --yes --from-json FILE
+                                      Validate explicit JSON and write a typed config
 faultlane doctor [--config FILE]       Read-only environment and target checks
 faultlane run [--config FILE] [--scenario ID] [--no-color]
 faultlane browsers install             Explicitly download matching Chromium
@@ -58,7 +61,11 @@ Slow requires a loading locator; success expectations are checked after the dela
 Recovery requires http-500, failure + success text, Retry name and loading locator.
 Baseline always runs. Scenarios: baseline, http-500, http-429, network, slow, empty.
 Paths resolve from the current directory, including reportsDir (not the CLI installation).
-Only HTTP(S) loopback targets and same-origin browser GET API calls are supported.
+Application targets stay HTTP(S) loopback. Legacy api uses same-origin browser GET.
+Advanced endpoints support exact origin/method/path/query matching and bounded sequences.
+External API origins require mockOrigins permission; real external API forwarding is prohibited.
+Explicit asset rules permit only chosen origin/path/resource types, with no browser credentials.
+Advanced --from-json accepts the actual runtime configuration schema, including UI assertions.
 Exit codes: 0 = success / all PASS; 1 = UI FAIL; 2 = configuration / execution ERROR.
 Doctor: PASS / WARNING / ERROR; WARNING alone exits 0 and is not a test PASS.
 Config files execute trusted local TypeScript. No public npm release; use a local tarball/link.

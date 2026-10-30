@@ -7,9 +7,11 @@ import os from "node:os";
 import { createServer } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 import { runResultSchema, type RunResult } from "../src/runner/results";
+import { verifyCompatibilityPackage } from "./package-compatibility";
 
 const exec = promisify(execFile);
 const root = process.cwd();
+const packageVersion = (JSON.parse(await readFile(path.join(root, "package.json"), "utf8")) as { version: string }).version;
 const npmCli = process.env.npm_execpath;
 assert(npmCli, "Run through npm run test:package so the installed npm CLI is used.");
 const temporary = await mkdtemp(path.join(os.tmpdir(), "faultlane-package-"));
@@ -78,7 +80,7 @@ try {
   for (const project of [nextProject, catalogProject]) {
     await npm(["install", "--offline", "--ignore-scripts", "--no-audit", "--no-fund", "--save-dev", tarball], project);
     assert((await cli(project, ["--help"])).includes("faultlane init"));
-    assert.equal((await cli(project, ["--version"])).trim(), "0.3.0");
+    assert.equal((await cli(project, ["--version"])).trim(), packageVersion);
     const installed = path.join(project, "node_modules/faultlane");
     assert(!(await readdir(installed)).includes("src"));
     const pkg = JSON.parse(await readFile(path.join(installed, "package.json"), "utf8")) as { dependencies: Record<string, string> };
@@ -178,6 +180,7 @@ try {
     } finally { await rename(unavailableEntry, playwrightEntry); }
     console.log(`Verified init → doctor → run → FAIL → corrected re-run, missing interception/browser/app/page for ${path.basename(app.project)}.`);
   }
+  await verifyCompatibilityPackage({ root, temporary, tarball, nextProject, nextUrl, npm, cli, commands, evidence });
   assert((await stat(tarball)).size > 0);
   await writeFile(path.join(evidenceDir, "latest.json"), JSON.stringify({ temporary, tarball, packageBytes: pack.size, files: pack.files.map((file) => file.path), evidence, commands, result: "PASS" }, null, 2));
   console.log(`Package smoke PASS. Evidence: ${path.join(evidenceDir, "latest.json")}`);

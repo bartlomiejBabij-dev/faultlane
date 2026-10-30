@@ -1,6 +1,7 @@
 import path from "node:path";
 import { access, stat } from "node:fs/promises";
 import { constants } from "node:fs";
+import { ZodError } from "zod";
 import { loadConfig } from "./load-config";
 import { safeOutputPath } from "./paths";
 import type { FaultLaneConfig } from "./config";
@@ -61,12 +62,19 @@ export async function diagnose(filename = "faultlane.config.ts", cwd = process.c
   }
   try {
     config = await loadConfig(filename, cwd);
-    checks.push({ name: "Configuration schema", status: "PASS", message: "v0.2-compatible schema and positive UI expectations validated." });
-  } catch {
-    checks.push({ name: "Configuration schema", status: "ERROR", message: "Check the trusted TypeScript default export, loopback URL, steps and positive assertions. No target was contacted." });
+    checks.push({ name: "Configuration schema", status: "PASS", message: "Legacy or endpoint schema, bounded sequences and positive UI expectations validated." });
+  } catch (error) {
+    const explanation = error instanceof ZodError
+      ? [...new Set(error.issues.map((issue) => issue.message))].slice(0, 4).join(" ")
+      : "Check the trusted TypeScript default export, loopback URL, steps and positive assertions.";
+    checks.push({ name: "Configuration schema", status: "ERROR", message: `${explanation} No target or API was contacted by doctor.` });
     return checks;
   }
-  checks.push({ name: "Endpoint pattern", status: "PASS", message: "GET pathname pattern valid. Actual interception must be established by run; doctor does not call the API." });
+  if (config.endpoints) {
+    checks.push({ name: "Endpoint matchers", status: "PASS", message: `${config.endpoints.length} endpoint(s) validated: exact origins and methods, bounded path/query matchers, independent counts and no ambiguous overlaps. No API probes sent.` });
+    checks.push({ name: "Network policy", status: "PASS", message: `Explicit mock origins: ${config.network?.mockOrigins.length ?? 0}; additional local forwarding origins: ${config.network?.localOrigins.length ?? 0}; asset rules: ${config.network?.assets.length ?? 0}. Unmatched API requests are blocked; external APIs are never forwarded.` });
+    checks.push({ name: "Coverage limits", status: "WARNING", message: "Browser fetch/XHR only. Service workers are blocked and routing disables HTTP cache. Server-side Next.js fetch, WebSocket messages and Supabase Auth/Realtime/Storage are outside coverage. Run verifies actual requests and UI; doctor cannot." });
+  } else checks.push({ name: "Endpoint pattern", status: "PASS", message: "Legacy GET pathname pattern valid. Actual interception must be established by run; doctor does not call the API." });
   try {
     const status = await probe(config.baseUrl);
     checks.push({ name: "Local application", status: status >= 300 ? "WARNING" : "PASS", message: `Loopback server responded HTTP ${status} at its origin. Root responses do not prove the test page works.` });

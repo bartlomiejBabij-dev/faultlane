@@ -4,13 +4,16 @@ import config from "../../../faultlane.config";
 import { listReports } from "@/lib/report-store";
 import { summarize, type ScenarioResult } from "@/runner/results";
 import { scenarioLabels } from "@/runner/scenarios";
+import { NetworkDetails } from "./network-details";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 const assetUrl = (id: string, filename: string) => `/api/reports/${encodeURIComponent(id)}/${encodeURIComponent(filename)}`;
 
 function ScenarioDetails({ result, runId }: { result: ScenarioResult; runId: string }) {
-  return <details className="scenario" open={result.status !== "PASS"}>
+  // Natywne details może zostać otwarte przez użytkownika przed hydratacją.
+  // Atrybut open jest stanem przeglądarki, nie oznaką rozbieżności danych raportu.
+  return <details className="scenario" open={result.status !== "PASS"} suppressHydrationWarning>
     <summary><span className="scenario-name">{scenarioLabels[result.id]}</span><span className="scenario-duration">{(result.durationMs / 1000).toFixed(1)}s</span><span className={`status ${result.status.toLowerCase()}`}>{result.status === "PASS" ? "✓" : "!"} {result.status}</span></summary>
     <div className="scenario-body"><h3>{result.name ?? "Observed behavior"}</h3><p className="text-xs">{result.observation}</p>
       <div className="request-metrics"><span>Observed <strong>{result.observedRequests ?? "not recorded (v0.1)"}</strong></span><span>Intercepted <strong>{result.interceptedRequests}</strong></span><span>Faulted <strong>{result.faultedRequests ?? "not recorded (v0.1)"}</strong></span></div>
@@ -19,6 +22,7 @@ function ScenarioDetails({ result, runId }: { result: ScenarioResult; runId: str
       {result.assertions.length === 0 && <p className="muted">UI assertions were not reached.</p>}
       {result.steps && result.steps.length > 0 && <details className="journey"><summary>Journey steps · {result.steps.filter((step) => step.status === "PASS").length}/{result.steps.length} completed{result.failedStep ? ` · failed at ${result.failedStep}` : ""}</summary><ol className="step-list">{result.steps.map((step) => <li key={step.index} className={step.status === "SKIPPED" ? "step-skipped" : ""}><div className="step-heading"><span className={`status ${step.status.toLowerCase()}`}>{step.status}</span><strong>{step.index}. {step.expected}</strong><span className="muted">{step.phase} · {(step.durationMs / 1000).toFixed(1)}s</span></div><p>{step.observed}</p>{step.code && <code>{step.code}</code>}{step.screenshot && <a className="text-link" href={assetUrl(runId, step.screenshot)} target="_blank" rel="noreferrer">Step {step.index} evidence ↗</a>}</li>)}</ol></details>}
       {result.requests && result.requests.length > 0 && <details className="journey"><summary>API request evidence · {result.requests.length} recorded</summary><div className="request-table"><table><thead><tr><th>Request</th><th>Phase</th><th>Outcome</th><th>HTTP</th></tr></thead><tbody>{result.requests.map((request) => <tr key={request.ordinal}><td>#{request.ordinal}</td><td>{request.phase}</td><td>{request.outcome}</td><td>{request.status ?? "—"}</td></tr>)}</tbody></table></div></details>}
+      {result.endpoints && result.network && <NetworkDetails endpoints={result.endpoints} network={result.network} />}
       <h3>Suggested inspection</h3><p className="text-xs">{result.suggestion}</p>
       {result.diagnostics.map((message) => <p className="text-xs" key={message}>{message}</p>)}
       {result.screenshot && <div className="evidence"><a className="text-link" href={assetUrl(runId, result.screenshot)} target="_blank" rel="noreferrer">Open browser evidence ↗</a><Image unoptimized src={assetUrl(runId, result.screenshot)} alt={`${scenarioLabels[result.id]} — ${result.status} screenshot`} width={1440} height={1000} /></div>}

@@ -1,6 +1,6 @@
 {
   "name": "faultlane",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -45,7 +45,8 @@
     "next": "^16.4.3",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "esbuild": "^0.28.2"
+    "esbuild": "^0.28.2",
+    "vite": "^8.3.5"
   },
   "description": "Local-first browser API failure testing CLI",
   "bin": {

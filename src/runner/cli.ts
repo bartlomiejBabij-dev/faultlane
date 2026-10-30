@@ -49,6 +49,7 @@ async function main(): Promise<number> {
     if (args.command === "init") { await initialize(args.values, process.cwd(), log); return 0; }
     const config = await loadConfig(typeof args.values.config === "string" ? args.values.config : undefined);
     config.reportsDir = await safeOutputPath(config.reportsDir, process.cwd());
+    if (config.endpoints) log(`Network policy: ${config.endpoints.length} explicit endpoints; ${config.network?.mockOrigins.length ?? 0} mock origins; ${config.network?.assets.length ?? 0} asset rules. External APIs are never forwarded; unmatched APIs are blocked. Service workers are blocked.`);
     log("Configuration loaded and validated. Starting Chromium…");
     const { runFaultLane } = await import("./browser");
     const { run, directory } = await runFaultLane(config, {
@@ -59,6 +60,12 @@ async function main(): Promise<number> {
         log(result.status.padEnd(5) + " " + result.id.padEnd(10) + " " + result.durationMs + " ms · observed " + result.observedRequests + " / intercepted " + result.interceptedRequests + " / faulted " + result.faultedRequests + "\n      " + (result.code ? "[" + result.code + "] " : "") + result.observation + (result.failedStep ? " (step " + result.failedStep + ")" : ""));
         log("      Verified UI assertions: " + result.assertions.filter((a) => a.passed).length + "/" + result.assertions.length + "; step screenshots saved: " + (result.steps?.filter((s) => s.screenshot).length ?? 0) + ".");
         if (result.status !== "PASS") log("      " + result.suggestion);
+        for (const endpoint of result.endpoints ?? []) log(`      ${endpoint.id}: ${endpoint.method} ${endpoint.origin}${endpoint.pathname} · observed ${endpoint.observedRequests} / intercepted ${endpoint.interceptedRequests} / expected ${endpoint.expectedRequests} / blocked ${endpoint.blockedRequests}`);
+        if (result.network) {
+          log(`      Network: ${result.network.mockedRequests} mocked / ${result.network.allowedRequests} explicitly allowed / ${result.network.blockedRequests} blocked. Query values and headers omitted.`);
+          if (result.network.zeroMatchTargets.length) log("      Zero matches: " + result.network.zeroMatchTargets.join(", "));
+          for (const hypothesis of result.network.hypotheses) log("      Hypothesis: " + hypothesis);
+        }
       },
     });
     const counts = summarize(run.results);

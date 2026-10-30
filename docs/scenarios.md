@@ -1,6 +1,16 @@
 # Scenariusze i oczekiwania
 
-## Kreator v0.3
+## Endpointy i sekwencje v0.4
+
+`faultlane init --advanced` zbiera wiele endpointów, metody, query, syntetyczne odpowiedzi, oczekiwania i jawne zgody sieciowe. `faultlane init --advanced --yes --from-json setup.json` waliduje pełną konfigurację JSON i generuje typowany plik TS. Opcji prostego kreatora nie miesza się z trybem zaawansowanym.
+
+Każdy `endpoints[n]` deklaruje `id`, `match`, `response`, dokładne `expectedRequests` (domyślnie 1) oraz `maxRequests` (domyślnie 10). `scenarios[n].targets` nadpisuje tylko wskazane endpointy ograniczoną `sequence`; `expectedRequests` override musi równać się jej długości. Obsługiwane odpowiedzi: `mock`, lokalny `forward`, `http-500`, `http-429`, `network`, `empty`, `slow` z jawną odpowiedzią końcową. Nieplanowany request po końcu sekwencji jest blokowany i powoduje FAIL.
+
+Nie łącz `endpoints` z `api`, globalnym `maxRequests`, `affectRequests` ani legacy `recovery`. `sequenceRecovery` rozdziela asercje awarii, deklaratywne akcje i asercje odzyskania. Przy automatycznym backoff końcowe asercje mogą nastąpić po całej sekwencji bez kliknięcia. Sam wygląd zdrowego UI bez wymaganych requestów nie zalicza testu.
+
+Pełne działające przykłady, ograniczenia Supabase i reguły sieci: [zgodność z rzeczywistymi aplikacjami](real-world-compatibility.md). Poniższa dokumentacja prostego `api` zachowuje kontrakt v0.1–v0.3.
+
+## Prosty kreator zgodny z v0.3
 
 W zewnętrznym projekcie uruchom `faultlane init` z lokalnie zainstalowanego/linkowanego CLI. Schemat pozostaje zgodny z v0.2. Pełne przykłady i flagi: [pierwsze użycie](getting-started.md). `faultlane --help` działa bez konfiguracji i przeglądarki.
 

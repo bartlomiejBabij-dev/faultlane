@@ -8,6 +8,7 @@ import { apiSchema, locatorSchema, pagePathSchema } from "./journey-schema";
 import { detectProject, type ProjectInfo } from "./project";
 import { initConfigPath, safeOutputPath } from "./paths";
 import { CliInputError } from "./cli-error";
+import { collectAdvancedSetup, readAdvancedConfiguration } from "./init-advanced";
 
 export function parseSetupLocator(value: string): LocatorConfig {
   const [by, first, ...rest] = value.split(":");
@@ -155,10 +156,21 @@ export async function initialize(values: Record<string, string | boolean | undef
       backup = (await ask("Configuration exists. Keep unchanged or back up and replace? [keep/backup]: ")).trim() === "backup";
       if (!backup) { log("Existing configuration left unchanged."); return; }
     }
-    const setupValues = Object.fromEntries(Object.entries(values).filter(([key]) => !["yes", "backup", "config", "no-color", "help"].includes(key)));
-    const options = values.yes ? setupSchema.parse(setupValues) : await collectSetup(setupValues, project, ask);
-    await safeOutputPath(options["reports-dir"], cwd);
-    const config = configurationFromSetup(options);
+    let config: FaultLaneConfig;
+    if (values.advanced) {
+      if (Object.keys(values).some((key) => !["advanced", "from-json", "yes", "backup", "config", "no-color", "help"].includes(key))) throw new CliInputError("Advanced init uses its guided prompts or --from-json FILE, not the legacy setup flags.");
+      if (typeof values["from-json"] === "string") config = await readAdvancedConfiguration(values["from-json"], cwd);
+      else {
+        if (values.yes) throw new CliInputError("init --advanced --yes requires --from-json FILE with explicit endpoints, permissions and UI expectations.");
+        config = await collectAdvancedSetup(project, ask);
+      }
+    } else {
+      if (values["from-json"]) throw new CliInputError("Use --advanced with --from-json FILE.");
+      const setupValues = Object.fromEntries(Object.entries(values).filter(([key]) => !["yes", "backup", "config", "no-color", "help"].includes(key)));
+      const options = values.yes ? setupSchema.parse(setupValues) : await collectSetup(setupValues, project, ask);
+      config = configurationFromSetup(options);
+    }
+    await safeOutputPath(config.reportsDir, cwd);
     const savedBackup = await writeConfiguration(filename, renderConfiguration(config), backup);
     if (savedBackup) log(`Backup saved: ${savedBackup}`);
     log(`Configuration created: ${filename}\nReview the expectations. Start your application in another terminal.\nThen run: faultlane doctor${values.config ? ` --config "${values.config}"` : ""}\nThen run: faultlane run${values.config ? ` --config "${values.config}"` : ""}\nIf Chromium is missing: faultlane browsers install`);

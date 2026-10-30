@@ -1,12 +1,14 @@
-# FaultLane v0.3
+# FaultLane v0.4
 
 **Find failures before users do.** Lokalne narzędzie do sprawdzania, jak interfejs aplikacji reaguje na awarie API. Uruchamia prawdziwe Chromium, przechwytuje żądanie z przeglądarki, wykonuje jawne asercje Playwright i zapisuje raport wraz ze zrzutami ekranu.
 
 To działające MVP: brak kont, chmury, płatnych API i automatycznego skanowania. Panel pokazuje wyłącznie wyniki odczytane z dysku.
 
-**v0.3: CLI we własnym repozytorium.** Lokalnie instalowalny tarball lub `npm link`, interaktywny `faultlane init`, tryb `init --yes`, `faultlane doctor` i `faultlane run` działające bez serwera FaultLane. Konfiguracja i raporty pozostają w testowanej aplikacji. Paczka nie została opublikowana w npm.
+**v0.4: kilka API w prawdziwej aplikacji.** Jawne endpointy mają własne matchery origin/metoda/ścieżka/query, liczniki i ograniczone sekwencje odpowiedzi. Możesz mockować cross-origin fetch/XHR, sprawdzić GET kolekcji Supabase-style REST, ręczne recovery po 500 lub automatyczne ponowienia 429. Zgoda na mockowanie zewnętrznego originu nie pozwala na rzeczywiste wysyłanie do niego żądań API.
 
-Pełna instrukcja dla zewnętrznych Next.js/React, instalacja i odinstalowanie, flagi kreatora oraz recovery: **[Pierwsze użycie](docs/getting-started.md)**.
+CLI nadal działa z lokalnego tarballa lub `npm link`, bez serwera FaultLane. `init`, `init --yes`, `doctor` i `run` zachowują istniejące zachowanie; `init --advanced` dodaje konfigurację wielu endpointów i jawnych uprawnień. Paczka nie została opublikowana w npm.
+
+Instalacja i kreator: **[Pierwsze użycie](docs/getting-started.md)**. Pełne konfiguracje Next.js, React/Vite, Supabase REST, sekwencje i granice sieci: **[Zgodność z rzeczywistymi aplikacjami](docs/real-world-compatibility.md)**.
 
 ```sh
 # W repozytorium FaultLane:
@@ -14,7 +16,7 @@ npm ci
 npm run build:cli
 npm pack
 # W katalogu własnej aplikacji (podaj rzeczywistą lokalną ścieżkę):
-npm install --save-dev "/sciezka/do/faultlane-0.3.0.tgz"
+npm install --save-dev "/sciezka/do/faultlane-0.4.0.tgz"
 npm exec --no -- faultlane init
 npm exec --no -- faultlane doctor
 # Jeżeli Chromium jest nieobecne: npm exec --no -- faultlane browsers install
@@ -24,7 +26,16 @@ npm exec --no -- faultlane run
 
 Kreator wymaga konkretnych oczekiwań dla baseline i awarii. Bez nich `init --yes` kończy się kodem 2. Istniejącej konfiguracji nie zastępuje bez jawnej kopii (`--backup` lub wybór w kreatorze). `doctor` nie zapisuje plików w projekcie i nie pobiera przeglądarki. Nie stanowi dowodu poprawnego UI — tę weryfikację wykonuje `run`.
 
-Wersja 0.2 dodaje deklaratywne kroki użytkownika i testy **awaria → Retry → odzyskanie**. Dotychczasowe konfiguracje i pięć scenariuszy v0.1 nadal działają bez zmian. Nowe raporty mają `schemaVersion: 2`; panel czyta także wersję 1 i nie przepisuje starych plików.
+Dotychczasowe konfiguracje `api` oraz ich ścisły kontrakt **awaria → Retry → prawdziwe 2xx** pozostają zgodne z v0.1–v0.3. Konfiguracje `endpoints` używają raportu `schemaVersion: 3`; starszy tryb zapisuje wersję 2. Panel czyta wersje 1, 2 i 3 bez przepisywania historycznych plików.
+
+```sh
+# Jawny tryb dla cross-origin, wielu endpointów i sekwencji:
+npm exec --no -- faultlane init --advanced
+# Albo powtarzalne wygenerowanie TS z kompletnego deklaratywnego JSON:
+npm exec --no -- faultlane init --advanced --yes --from-json setup.json
+```
+
+`baseUrl` pozostaje lokalny. W trybie `endpoints` niedopasowane API są blokowane także w originie aplikacji, a niezbędne zasoby CDN wymagają osobnych reguł origin/ścieżka/typ zasobu. Prawdziwy forward API jest możliwy wyłącznie dla jawnych lokalnych GET/HEAD. Browser routing nie obejmuje wewnętrznych wywołań Next.js po stronie serwera.
 
 ## Szybki start
 
@@ -69,7 +80,7 @@ Konfiguracja wybiera `/demo?broken=http-500` i test HTTP 500. Baseline nadal dzi
 
 Zwykłe `/demo` i domyślna konfiguracja nie aktywują usterki. Sam parametr demonstracyjny bez symulowanego HTTP 500 nie powoduje awarii.
 
-## Nowe scenariusze v0.2
+## Zachowane scenariusze v0.2
 
 Przy działającym `npm run dev`, w drugim terminalu:
 
@@ -144,9 +155,11 @@ JSON jest zapisywany atomowo na końcu i zawiera wyniki asercji, statusy, liczni
 
 Raport v0.2 dodaje nazwę uruchomienia, `observedRequests` (zdarzenia przeglądarki), `interceptedRequests` (wywołania route handlera), `faultedRequests` (ukończone symulacje), bezpieczne metadane odpowiedzi, `steps`, `failedStep` i `code`. Każdy wykonany krok ma obserwację i zrzut `http-500-step-010.png` itp. Kroki po niepowodzeniu mają status **SKIPPED** — nie są zaliczane ani przedstawiane jako zweryfikowane. Nieznanych liczników starych raportów nie zastępujemy zerami.
 
+Raport v3 dodaje dowody osobno dla każdego endpointu: oczekiwaną i rzeczywistą sekwencję, niezależne numery requestów, metodę/origin/ścieżkę i liczniki. Odróżnia `mocked`, `simulated`, `forwarded`, `aborted` i `blocked`. Pokazuje też ograniczony rejestr sieci, endpointy bez dopasowań, ostrzeżenia o pokryciu oraz hipotezy diagnostyczne. Wszystkie wartości query, nagłówki i body są pomijane. Hipotezy nie są przedstawiane jako ustalone przyczyny.
+
 Wyniki wcześniejszych nieudanych uruchomień pozostają w historii. Panel pokazuje także ERROR; nie zastępuje ich fikcyjnymi sukcesami.
 
-## Własny test
+## Własny test w zachowanym trybie pojedynczego API
 
 Edytuj `faultlane.config.ts` albo utwórz własny lokalny plik TypeScript:
 
@@ -181,7 +194,7 @@ export default defineConfig({
 
 Dodaj odpowiednie `data-testid` w aplikacji albo użyj `locator` po roli i nazwie dostępnej lub etykiecie. Dostępne asercje: `visible`, `hidden`, `text` (widoczność i zawieranie tekstu), `textAbsent` (brak dopasowanego tekstu w DOM) oraz `count`. Każdy zestaw wymaga przynajmniej jednej pozytywnej asercji. Scenariusz `slow` dodatkowo wymaga `duringDelay` i przyjmuje `delayMs` w zakresie 500–10000 ms.
 
-Wzorzec API porównuje **pathname w originie `baseUrl`**, ignoruje query string i dopuszcza `*` jako dowolny ciąg znaków, także zawierający `/`. Rejestracja interceptora i obserwacji następuje przed nawigacją. Przechwytywane są wszystkie pasujące żądania GET; komponenty React w trybie developerskim mogą wykonać więcej niż jedno żądanie przy montowaniu. Recovery najlepiej uruchamiać jawnym kliknięciem ze stanu idle.
+Starsze `api.pathname` porównuje **pathname w originie `baseUrl`**, ignoruje query string i dopuszcza `*` jako dowolny ciąg znaków, także zawierający `/`. Model `endpoints` ma osobne, węższe reguły opisane w [przewodniku v0.4](docs/real-world-compatibility.md). Rejestracja interceptora i obserwacji następuje przed nawigacją. Komponenty React w trybie developerskim mogą wykonać więcej niż jedno żądanie przy montowaniu; skonfiguruj rzeczywistą oczekiwaną liczbę.
 
 ```sh
 npm run faultlane -- run --config faultlane.custom.config.ts
@@ -194,7 +207,7 @@ Wybór jednego scenariusza awarii **nadal uruchamia baseline**. Brak scenariusza
 
 Konfiguracja TypeScript jest wykonywalnym kodem lokalnym: uruchamiaj tylko zaufane pliki. Walidacja Zod nie jest piaskownicą dla kodu konfiguracyjnego.
 
-## Kroki i recovery we własnej aplikacji
+## Kroki i recovery w starszym trybie `api`
 
 Poniższy przykład działa również z drugą lokalną aplikacją Next.js/React. Uruchom ją np. na porcie 3001; endpoint musi być wywoływany przez przeglądarkę. Dodaj dostępne nazwy przycisków i wskazane test IDs, a następnie zapisz w katalogu FaultLane plik `faultlane.orders.config.ts`:
 
@@ -271,18 +284,21 @@ npm run verify
 
 Testy E2E uruchamiają lokalny serwer, jeśli nie działa na porcie 3000. Weryfikują także sześć oryginalnych scenariuszy v0.1. Nowe testy badają wszystkie kroki, recovery, trzy defekty demo przez osobne procesy CLI, drugi serwer na losowym porcie loopback, brak requestu, pozorne odzyskanie UI, brak Retry, przedwczesne/podwójne ponowienie i HTTP 503 po Retry. Testy CLI celowych defektów tworzą prawdziwe raporty w `reports/`; pozostałe artefakty trafiają do `test-results/`. Vitest bada konfigurację, symulacje, liczniki i limity żądań, selekcję scenariuszy, kompatybilność raportów i ochronę ścieżek, w tym dowiązania/junction na Windows.
 
+Warstwa v0.4 dodaje niezależne aplikacje React/Vite, lokalny odpowiednik REST Supabase i stronę Next.js z trzema API. Testy sprawdzają cross-origin, 500 → recovery, 429 → 429 → 200, równoległe żądania, nietrafione matchery, błędny UI, redakcję raportu i blokady. Liczniki serwera lokalnego weryfikują, czy mockowane lub blokowane API rzeczywiście do niego nie dotarło. Test paczki instaluje tarball poza repozytorium i korzysta z publicznych komend CLI.
+
 ## Ograniczenia MVP
 
 - **Przechwytywanie żądań przeglądarki przez Playwright nie obejmuje automatycznie wywołań API wykonywanych wewnętrznie przez kod serwerowy Next.js.** Dotyczy to m.in. Server Components i Server Actions.
 - To kontrola wybranych stanów UI, nie dowód pełnej odporności dowolnej aplikacji.
-- Tylko Chromium, adresy HTTP(S) `localhost`/loopback i API GET w testowanym originie. Dostępne są deklaratywne kroki, ale brak logowania, zapisanego profilu, dowolnego JavaScript, testów POST, chmury i zewnętrznych celów.
-- Przekierowania HTTP są odrzucane; podaj bezpośredni końcowy URL. Service Workers są blokowane. Zewnętrzne zasoby i metody inne niż GET/HEAD są blokowane. Lokalne WebSockety są przepuszczane dla developerskiego HMR, ale nie są testowane jako API.
+- Tylko Chromium i lokalna strona aplikacji. Zewnętrzne fetch/XHR są obsługiwane wyłącznie przez zadeklarowane mocki. POST/PUT/PATCH/DELETE można mockować, ale nie przekazywać do serwera; body nie służy do dopasowania. Brak logowania, importu sesji, dowolnego JavaScript i chmury.
+- Przekierowania HTTP są odrzucane; podaj końcowy URL. Service Workers są blokowane, routing wyłącza cache HTTP, więc test nie obejmuje normalnej pracy offline. Zasoby zewnętrzne wymagają jawnych reguł. WebSockety HMR z originu aplikacji nie są testowane jako API.
+- Supabase-style REST obejmuje GET kolekcji i dane syntetyczne. Nie obejmuje Auth, Realtime, Storage, RPC, `.single()`, PostgreSQL ani pełnego kontraktu SDK/PostgREST.
 - Lokalny backend może sam komunikować się z innymi usługami. Runner nie kontroluje kodu serwera ani baz danych. Używaj odizolowanej aplikacji developerskiej i danych syntetycznych.
 - Zrzuty mogą zawierać widoczne dane strony. Pola haseł, elementy z `data-faultlane-private` i `maskTestIds` są maskowane. Nie zapisujemy cookies, nagłówków autoryzacji, treści żądań ani surowych wyjątków; query string URL strony jest usuwany z raportu.
 - Brak auto-odświeżania i retencji raportów; usuń niepotrzebne katalogi ręcznie. Panel jest lokalny, bez uwierzytelniania — nie wystawiaj go jako publicznej usługi.
 
 Szczegóły: [architektura](docs/architecture.md), [scenariusze](docs/scenarios.md), [ograniczenia](docs/limitations.md).
 
-Recovery potwierdza kolejność i liczbę requestów w czasie scenariusza; nie dowodzi przyczynowości wobec dowolnego ukrytego timera aplikacji. Żądanie przed Retry jest błędem, a dodatkowe retry jest blokowane. Po zamknięciu kontekstu runner nie obserwuje dalszego zachowania aplikacji.
+Recovery potwierdza kolejność i liczbę requestów w czasie scenariusza; nie dowodzi przyczynowości wobec dowolnego ukrytego timera aplikacji. Starszy tryb `api.recovery` zachowuje kontrolę requestu przed Retry i dokładnie jednego requestu po nim. Nowy `sequenceRecovery` i sekwencje automatyczne mają jawne liczniki per endpoint. Po zamknięciu kontekstu runner nie obserwuje dalszego zachowania aplikacji.
 
-Audyt wcześniejszego etapu: [docs/audit-v0.2.md](docs/audit-v0.2.md). Wdrożenie zewnętrzne: [docs/getting-started.md](docs/getting-started.md). Następny etap może dodać jawne retry/backoff i wiele endpointów w jednym kontrakcie, zachowując lokalny charakter narzędzia.
+Audyt etapu: [v0.4](docs/audit-v0.4.md); historia: [v0.3](docs/audit-v0.3.md), [v0.2](docs/audit-v0.2.md). Następny etap może rozszerzyć zgodność z rzeczywistym SDK Supabase i dodać jawne kontrakty czasu retry, zachowując lokalny charakter narzędzia.

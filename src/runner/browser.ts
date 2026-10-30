@@ -11,6 +11,7 @@ import { RunnerIssue } from "./errors";
 import { describeAction, executeAction, navigateLocal } from "./actions";
 import { captureEvidence, executeSteps, type PlannedStep } from "./steps";
 import { RequestTracker } from "./requests";
+import { emptyNetworkResult, executeNetworkScenario } from "./browser-network";
 
 function emptyResult(scenario: Scenario): ScenarioResult {
   return { id: scenario.id, name: scenario.name ?? scenarioLabels[scenario.id], status: "ERROR", code: null, durationMs: 0, observedRequests: 0, interceptedRequests: 0, faultedRequests: 0, requests: [], steps: [], failedStep: null, assertions: [], observation: "Scenario did not finish.", suggestion: "Inspect the local server, API pathname and configured timeouts.", screenshot: null, loadingScreenshot: null, diagnostics: [] };
@@ -161,11 +162,11 @@ export async function runFaultLane(input: FaultLaneConfig, options: { only?: str
   const directory = path.resolve(config.reportsDir, id);
   await mkdir(directory, { recursive: true });
   const target = new URL(config.pagePath, config.baseUrl);
-  const run: RunResult = { schemaVersion: 2, name: config.name ?? "FaultLane local run", id, startedAt: started.toISOString(), durationMs: 0, application: `${target.origin}${target.pathname}`, apiPattern: config.api.pathname, results: [] };
+  const run: RunResult = { schemaVersion: config.endpoints ? 3 : 2, name: config.name ?? "FaultLane local run", id, startedAt: started.toISOString(), durationMs: 0, application: `${target.origin}${target.pathname}`, apiPattern: config.api?.pathname ?? "Multiple explicit endpoints", results: [] };
   let browser: Browser | undefined;
   try { browser = await chromium.launch({ headless: true, timeout: 20_000 }); }
   catch {
-    run.results = scenarios.map((scenario) => ({ ...emptyResult(scenario), code: "BROWSER_LAUNCH", observation: "Chromium could not be launched. Run faultlane browsers install (repository: npm run browsers:install) and check the local environment." }));
+    run.results = scenarios.map((scenario) => ({ ...(config.endpoints ? emptyNetworkResult(config, scenario) : emptyResult(scenario)), code: "BROWSER_LAUNCH", observation: "Chromium could not be launched. Run faultlane browsers install (repository: npm run browsers:install) and check the local environment." }));
     for (const result of run.results) options.onResult?.(result);
   }
   if (browser) {
@@ -173,7 +174,7 @@ export async function runFaultLane(input: FaultLaneConfig, options: { only?: str
       options.onBrowserReady?.();
       for (const scenario of scenarios) {
         options.onScenarioStart?.(scenario.id);
-        const result = await executeScenario(browser, config, scenario, directory);
+        const result = await (config.endpoints ? executeNetworkScenario : executeScenario)(browser, config, scenario, directory);
         run.results.push(result);
         options.onResult?.(result);
       }

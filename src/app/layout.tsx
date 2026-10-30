@@ -11,7 +11,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return <html lang="en"><body>
     <div className="app-shell">
       <aside className="sidebar">
-        <Link href="/results" className="brand"><span className="brand-mark">ϟ</span> FaultLane<span className="version">0.2</span></Link>
+        <Link href="/results" className="brand"><span className="brand-mark">ϟ</span> FaultLane<span className="version">0.4</span></Link>
         <div className="workspace"><span className="workspace-icon">L</span><div>Local workspace<small>On your machine</small></div><span className="online-dot" /></div>
         <span className="nav-label">WORKSPACE</span>
         <nav aria-label="Main navigation"><Link href="/results"><span>◫</span> Test results</Link><Link href="/demo"><span>▤</span> Demo application</Link></nav>

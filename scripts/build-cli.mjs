@@ -21,6 +21,12 @@ const program = ts.createProgram(parsed.fileNames, parsed.options);
 // Apply this only to the compiler's declaration AST, not to the shared source.
 const extensions = (context) => (source) => {
   const visit = (node) => {
+    if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument) && ts.isStringLiteral(node.argument.literal)) {
+      const specifier = node.argument.literal.text;
+      if (specifier.startsWith(".") && !path.extname(specifier)) {
+        return ts.factory.updateImportTypeNode(node, ts.factory.createLiteralTypeNode(ts.factory.createStringLiteral(specifier + ".js")), node.attributes, node.qualifier, node.typeArguments, node.isTypeOf);
+      }
+    }
     if ((ts.isExportDeclaration(node) || ts.isImportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
       const specifier = node.moduleSpecifier.text;
       if (specifier.startsWith(".") && !path.extname(specifier)) {

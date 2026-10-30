@@ -1,8 +1,8 @@
-# FaultLane v0.3 — pierwsze użycie we własnej aplikacji
+# FaultLane v0.4 — pierwsze użycie we własnej aplikacji
 
 CLI działa w katalogu Twojej aplikacji. Serwer i panel FaultLane nie muszą być uruchomione. Paczka **nie została opublikowana w npm**; nie zakładamy działania publicznego `npx faultlane`.
 
-Wymagania: Node.js 22.13+, 24.x lub 26.x, npm oraz system obsługiwany przez Chromium/Playwright. Weryfikację v0.3 wykonano na Windows z Node.js 24.21.0. Zalecamy aktualne wydanie LTS. Polecenia z cudzysłowami działają także ze spacjami w ścieżkach.
+Wymagania: Node.js 22.13+, 24.x lub 26.x, npm oraz system obsługiwany przez Chromium/Playwright. Testy projektu w tym środowisku uruchamiamy na Windows; nie stanowi to sprawdzenia Linux/macOS ani każdej wspieranej linii Node. Faktyczne wyniki są zapisane w [audycie v0.4](audit-v0.4.md). Polecenia z cudzysłowami działają także ze spacjami w ścieżkach.
 
 ## 1. Przygotuj i zainstaluj lokalne CLI
 
@@ -15,17 +15,17 @@ npm pack --dry-run
 npm pack
 ```
 
-`npm pack` uruchamia także `prepack`, czyli ponowny build CLI, i tworzy `faultlane-0.3.0.tgz`. Nie publikuje paczki. Dystrybucja zawiera skompilowany JavaScript, deklaracje typów i dokumentację, bez panelu Next.js, demo, konfiguracji projektu, screenshotów i historycznych raportów. Flaga `private: true` pozostaje włączona.
+`npm pack` uruchamia także `prepack`, czyli ponowny build CLI, i tworzy tarball o wersji z `package.json` — dla wydania v0.4 jest to `faultlane-0.4.0.tgz`. Nie publikuje paczki. Dystrybucja zawiera skompilowany JavaScript, deklaracje typów i dokumentację, bez panelu Next.js, demo, konfiguracji projektu, screenshotów i historycznych raportów. Flaga `private: true` pozostaje włączona.
 
 W katalogu **własnej aplikacji**, z poprawną lokalną ścieżką do tarballa:
 
 ```sh
-npm install --save-dev "/sciezka/do/faultlane/faultlane-0.3.0.tgz"
+npm install --save-dev "/sciezka/do/faultlane/faultlane-0.4.0.tgz"
 npm exec --no -- faultlane --version
 npm exec --no -- faultlane --help
 ```
 
-Na Windows podaj np. `"C:\projekty\faultlane\faultlane-0.3.0.tgz"`. W tej instrukcji `npm exec --no -- faultlane` oznacza wykonywalny plik z już zainstalowanej lokalnej paczki; odmowa instalacji zapobiega przypadkowemu sięgnięciu po publiczny pakiet o tej nazwie. W skrypcie `package.json` możesz używać bezpośrednio `faultlane run`, np. `"test:reliability": "faultlane run"`.
+Na Windows podaj np. `"C:\projekty\faultlane\faultlane-0.4.0.tgz"`. W tej instrukcji `npm exec --no -- faultlane` oznacza wykonywalny plik z już zainstalowanej lokalnej paczki; odmowa instalacji zapobiega przypadkowemu sięgnięciu po publiczny pakiet o tej nazwie. W skrypcie `package.json` możesz używać bezpośrednio `faultlane run`, np. `"test:reliability": "faultlane run"`.
 
 Alternatywa z `npm link`:
 
@@ -49,9 +49,11 @@ npm run dev -- --hostname 127.0.0.1 --port 3001
 
 Jeżeli Twój skrypt `dev` przyjmuje inne argumenty, uruchom go zgodnie z konfiguracją projektu i odczytaj rzeczywisty port. Kreator wykrywa nazwy zależności Next.js/React/Vite i nazwy skryptów `dev`/`start`; nie odgaduje ich działania. Port 3000 dla Next.js/React lub 5173 dla Vite jest wyłącznie sugestią.
 
-Endpoint musi być wywoływany przez **przeglądarkę**, np. `fetch('/api/orders')` w komponencie klienckim lub handlerze przycisku. Server Components, Server Actions i wewnętrzne wywołania backendu nie są automatycznie przechwytywane. API musi być GET w tym samym originie co testowana strona. Dla osobnego backendu użyj własnego lokalnego proxy aplikacji.
+Endpoint musi być wywoływany przez **przeglądarkę**, np. `fetch('/api/orders')` w komponencie klienckim lub handlerze przycisku. Server Components, Server Actions i wewnętrzne wywołania backendu nie są automatycznie przechwytywane. Prosty tryb `api` obsługuje GET w originie strony. Dla cross-origin, Supabase-style REST, kilku API i sekwencji wybierz `endpoints` przez kreator zaawansowany. Aplikacja pozostaje lokalna; zgoda na mockowanie zewnętrznego API nie pozwala go wywołać.
 
 ## 3. Wygeneruj konfigurację
+
+Bez `--advanced` pozostaje prosty kreator pojedynczego GET API, zgodny z v0.3:
 
 W drugim terminalu, nadal w katalogu Twojej aplikacji:
 
@@ -81,6 +83,24 @@ npm exec --no -- faultlane init --yes --url http://127.0.0.1:3001 --page /orders
 
 W wariancie automatycznym użyj `--trigger auto` i pomiń `--click-name`. Do jawnej kopii i zastąpienia dodaj `--backup`. W razie potrzeby wybierz `--config faultlane.orders.config.ts`; kolejne polecenia muszą używać tej samej flagi. Wygenerowany plik to zwykły TypeScript zgodny ze schematem v0.2. Można dopisać istniejące kroki `fill`, `navigate`, `waitForElement`, `waitForRequest` i `assert`.
 
+### Cross-origin, wiele endpointów i Supabase REST
+
+```sh
+npm exec --no -- faultlane init --advanced
+```
+
+Ten wariant pyta o lokalną aplikację, liczbę endpointów, ich ID, origin/metodę/ścieżkę/query, format `json` lub `supabase-rest`, dane poprawnej odpowiedzi i limity requestów. Wymaga osobnej zgody na mockowanie każdego cross-origin oraz na prawdziwy forward do dodatkowego lokalnego API. Następnie wybierasz wyzwalacz, pozytywne oczekiwania UI, awarię i ograniczoną sekwencję odpowiedzi. Opcjonalnie konfigurujesz stan błędu, kliknięcie odzyskania i jego asercje oraz wąskie reguły zasobów. Kreator tworzy jeden scenariusz awarii; kolejne można dopisać w pliku.
+
+Tryb bez pytań przyjmuje pełny deklaratywny obiekt konfiguracji w wybranym pliku JSON:
+
+```sh
+npm exec --no -- faultlane init --advanced --yes --from-json setup.json
+```
+
+`setup.json` używa rzeczywistego schematu: `baseUrl`, `pagePath`, `endpoints`, opcjonalnego `network`, `baseline` i `scenarios` z oczekiwaniami UI. To dane JSON, bez importu ani `export default`. Limit pliku wynosi 1 MB. `init` waliduje cały obiekt i zapisuje wynik jako typowany TypeScript; nie wysyła requestów do API. Nie mieszaj flag prostego kreatora (`--api`, `--failure` itp.) z `--advanced`. `--backup` i `--config` działają w obu trybach, a `--yes` nadal nie upoważnia do nadpisania.
+
+Kompletne przykłady zgodne ze schematem, ręczne recovery 500 i automatyczne 429 → 429 → 200: [zgodność z rzeczywistymi aplikacjami](real-world-compatibility.md).
+
 ## 4. Sprawdź środowisko i przeglądarkę
 
 ```sh
@@ -88,6 +108,8 @@ npm exec --no -- faultlane doctor
 ```
 
 `PASS` oznacza udany konkretny check środowiska, `WARNING` potrzebę uwagi, a `ERROR` przeszkodę. Kod 0 dopuszcza ostrzeżenia; kod 2 oznacza co najmniej jeden błąd. Doctor nie dowodzi przechwycenia API ani poprawnego UI, nie zapisuje plików w projekcie, nie uruchamia serwera i nie wywołuje API. Robi ograniczone czasowo GET originu i strony, nie śledzi przekierowań i sprawdza uprawnienia katalogu bez próbnego zapisu. Importuje jednak **zaufaną wykonywalną konfigurację**, tak samo jak `run`.
+
+Dla `endpoints` sprawdza również originy, metody, query, nakładanie matcherów, granice forward, sekwencje i jawne oczekiwania. Wypisuje politykę sieciową i ostrzeżenie o service workerach/SSR. Nie wykorzystuje kluczy API ani cookies do sprawdzania dostępności zewnętrznych usług.
 
 Jeżeli Chromium nie jest zainstalowane:
 
@@ -113,17 +135,21 @@ Kody procesu: **0 — PASS, 1 — niespełnione oczekiwania aplikacji, 2 — kon
 
 Po poprawieniu aplikacji uruchom ponownie **tę samą komendę i konfigurację**. Nowy raport nie zmienia poprzedniego. Nie włączaj demonstracyjnych przełączników usterek domyślnie.
 
-## 6. Recovery HTTP 500 → Retry → prawdziwe 2xx
+## 6. Recovery HTTP 500 → Retry → prawdziwe 2xx w prostym trybie
 
 W kreatorze wybierz recovery albo dodaj `--recovery` do pełnej komendy `init`. Wymagane są: oczekiwania sukcesu i błędu, nazwa przycisku ponowienia oraz lokator ładowania. Wygenerowana konfiguracja ustawia `affectRequests: 1`, `maxRequests: 2`, sprawdza błąd, klika Retry, wymaga nowego requestu z rzeczywistym statusem 2xx, sprawdza dane, zniknięcie błędu i zakończenie ładowania. Nie przechodzi na podstawie samego wyglądu UI.
 
-## Dwa niezależne przykłady i liczba kroków
+Tryb `endpoints` dodaje także recovery z syntetycznym 2xx oraz automatyczne ponowienia aplikacji. Każdy etap sekwencji wymaga rzeczywistego requestu przeglądarki; `mocked` w raporcie nie oznacza odpowiedzi prawdziwego Supabase. Kontrakt starszego `recovery` pozostaje bez zmian.
+
+## Niezależne przykłady i liczba kroków
 
 `examples/next-orders` to osobna aplikacja Next.js z `/orders`, `GET /api/shipments`, przyciskami **Fetch shipments / Reconnect** i danymi **Parcel Aurora**. Uruchom `npm install`, a następnie `npm run dev` w jej katalogu; port to 3101. Przycisk pozostaje nieaktywny do zakończenia hydratacji.
 
 `examples/catalog` to aplikacja Node HTTP i zwykły HTML, z `/catalog`, `GET /api/inventory`, przyciskami **Search inventory / Try again** i danymi **Cedar notebook**. Uruchom `npm install` i `npm run dev` w jej katalogu; port to 3100. Nie jest to drugi wariant demo FaultLane.
 
-Automatyczny `npm run test:package` kopiuje obie aplikacje do świeżych katalogów poza repozytorium (także ze spacjami), instaluje tarball przez npm, uruchamia serwery i wykonuje publiczne `init`, `doctor`, `run`, test usterki oraz ponowienie po poprawce. Zachowuje konfiguracje i raporty do wglądu; ich położenie zapisuje w `.package-tests/latest.json`. Instalacja w tym teście używa cache npm (`--offline`); jeśli brakuje zależności, zgłasza rzeczywisty błąd zamiast pozorować instalację.
+Wersja v0.4 dodaje `/workspace` z trzema endpointami do Next.js oraz osobne `examples/react-board` i `examples/supabase-tasks`. Obie aplikacje Vite mają inne teksty, lokatory i struktury odpowiedzi; korzystają z syntetycznego `examples/test-api`. Szczegółowe porty i konfiguracje: [przewodnik zgodności](real-world-compatibility.md#fixture-lokalne-i-uruchamianie).
+
+Automatyczny `npm run test:package` kopiuje aplikacje do świeżych katalogów poza repozytorium (także ze spacjami), instaluje tarball przez npm, uruchamia serwery i wykonuje publiczne `init`, `doctor`, `run`, test usterki oraz ponowienie po poprawce. Zachowuje poprzednie próby Next.js/katalogu, dodaje wiele endpointów w Next.js i instalację zewnętrznego React/Vite z cross-origin. Konfiguracje i raporty pozostają do wglądu; ich położenie zapisuje w `.package-tests/latest.json`. Instalacja używa cache npm (`--offline`); jeśli brakuje zależności, zgłasza rzeczywisty błąd zamiast pozorować instalację.
 
 Licząc operacje, po przygotowaniu tarballa i zależności własnej aplikacji jest **5 wymaganych czynności**: instalacja CLI, uruchomienie aplikacji, init, doctor, run. Brak Chromium dodaje **1** jawne polecenie instalacji. Odczyt raportu jest kolejną czynnością, a test po poprawce wymaga tylko ponownego `run`. To liczba kroków, nie pomiar czasu. Liczba pytań kreatora zależy od wybranego wyzwalacza i recovery; nie deklarujemy fikcyjnego czasu wdrożenia.
 
@@ -142,12 +168,14 @@ Konfiguracje i raporty pozostają Twoimi plikami. Usuń je ręcznie tylko wtedy,
 
 ## Najczęstsze problemy
 
-- `API_NOT_OBSERVED`: sprawdź GET, origin, pathname, wyzwalacz oraz to, czy fetch wykonuje przeglądarka. Nie wystarczy żądanie serwerowe Next.js.
+- `API_NOT_OBSERVED`: porównaj origin, metodę, pathname, query i wyzwalacz z metadanymi obserwowanych żądań. Nie wystarczy żądanie serwerowe Next.js. Lista możliwych przyczyn w raporcie jest oznaczona jako hipotezy.
 - Widoczny przycisk przed hydratacją może nie mieć handlera. Aplikacja powinna ujawniać gotowość przez `disabled` lub własny element; w konfiguracji można poprzedzić kliknięcie `waitForElement` na takim elemencie. Runner nie zgaduje gotowości każdego frameworka i nie powtarza potajemnie kliknięć.
 - Niejednoznaczna rola `alert`/`status`: dodaj dokładną dostępną nazwę lub stabilny test ID. Framework może mieć własny element o tej roli.
 - `RETRY_NO_REQUEST`: Retry nie wywołało nowego API w limicie. Zmiana tekstu lub zniknięcie błędu nie wystarcza.
+- `RECOVERY_REQUEST_MISSING` / `RESPONSE_SEQUENCE_INCOMPLETE`: nie wystąpiły wszystkie wymagane requesty nowego kontraktu endpointu; samo odtworzenie zdrowego UI nie wystarcza.
+- `NETWORK_POLICY_BLOCKED`: sprawdź blokowane ścieżki i typy zasobów. Dodatkowe API potrzebuje własnego endpointu, a CDN — wąskiej reguły zasobów. `mockOrigins` samo nie otwiera dostępu do sieci.
 - `BROWSER_LAUNCH`: wykonaj podaną instalację Chromium; sprawdź biblioteki systemowe i `PLAYWRIGHT_BROWSERS_PATH`, jeśli ustawiasz go świadomie.
-- ERROR przy URL: tylko HTTP(S) localhost/127.0.0.0/8/::1, bez danych logowania. `baseUrl` to sam origin. Użyj końcowej strony bez przekierowania.
+- ERROR przy `baseUrl`: tylko HTTP(S) localhost/127.0.0.0/8/::1, bez danych logowania. `baseUrl` to sam origin. Zdalny origin API wolno zadeklarować wyłącznie do mockowania. Użyj końcowej strony bez przekierowania.
 - Konfiguracja `.ts` jest kodem lokalnym; Zod sprawdza wynik importu, nie bezpieczeństwo kodu. Ładuj tylko pliki, którym ufasz. Kreator zapisuje deklaratywny obiekt przez bezpieczną serializację, bez eval.
 
 Źródła zasad pakowania: [manifest i bin npm](https://docs.npmjs.com/cli/v11/configuring-npm/package-json/), [wydania Node.js](https://github.com/nodejs/node/releases).
