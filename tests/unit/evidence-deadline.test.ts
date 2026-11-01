@@ -7,6 +7,7 @@ import config from "../../faultlane.config";
 import type { RunResult } from "../../src/runner/results";
 
 const fault = vi.hoisted(() => ({
+  preflightError: undefined as unknown,
   mkdirNever: false, writeCode: "", linkCode: "", cleanupCode: "",
   writeGate: undefined as Promise<void> | undefined, writeStarted: undefined as (() => void) | undefined, temporaryRemoved: undefined as (() => void) | undefined,
   linkGate: undefined as Promise<void> | undefined, linkStarted: undefined as (() => void) | undefined, linkCompleted: undefined as (() => void) | undefined,
@@ -18,6 +19,10 @@ vi.mock("node:fs/promises", async (original) => {
   const fs = await original<typeof import("node:fs/promises")>();
   const failure = (code: string) => Object.assign(new Error("synthetic filesystem failure"), { code });
   return { ...fs,
+    lstat: async (...args: Parameters<typeof fs.lstat>) => {
+      if (fault.preflightError !== undefined && path.basename(String(args[0])) === "report.md") throw fault.preflightError;
+      return await fs.lstat(...args);
+    },
     mkdir: async (...args: Parameters<typeof fs.mkdir>) => {
       if (fault.mkdirNever) await new Promise<never>(() => {});
       return await fs.mkdir(...args);
@@ -73,11 +78,50 @@ const dirs: string[] = [];
 async function temp() { const dir = await mkdtemp(path.join(os.tmpdir(), "faultlane-deadline-")); dirs.push(dir); return dir; }
 afterEach(async () => {
   vi.useRealTimers(); vi.restoreAllMocks();
+  fault.preflightError = undefined;
   Object.assign(fault, { mkdirNever: false, writeCode: "", linkCode: "", cleanupCode: "", writeGate: undefined, writeStarted: undefined, temporaryRemoved: undefined, linkGate: undefined, linkStarted: undefined, linkCompleted: undefined, removeGate: undefined, markerGate: undefined, markerStarted: undefined, markerRemoved: undefined, markerCode: "", targetRemoved: undefined, lateCleanup: undefined, targetWasRemoved: false, linkWasStarted: false });
   await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
 describe("bounded evidence lifecycle", () => {
+  it("allows preflight ENOENT to create and publish a missing report directory", async () => {
+    const dir = path.join(await temp(), "missing");
+    const run = { id: "20261028T120000000Z-1234abcd", startedAt: "2026-10-28T12:00:00.000Z", durationMs: 0, application: "http://127.0.0.1", apiPattern: "/api", results: [] } as unknown as RunResult;
+    await expect(writeReport(dir, run)).resolves.toEqual({ status: "SAVED", visibility: "READY" });
+    expect((await readdir(dir)).sort()).toEqual(["report.md", "results.json"]);
+    expect(JSON.parse(await readFile(path.join(dir, "results.json"), "utf8"))).toMatchObject(run);
+  });
+  it("preserves an existing preflight timeout diagnostic without publishing", async () => {
+    const dir = await temp();
+    const original = new EvidenceIssue("report-preflight", "TIMEOUT");
+    fault.preflightError = original;
+    const run = { id: "20261028T120000000Z-1234abcd", startedAt: "2026-10-28T12:00:00.000Z", durationMs: 0, application: "http://127.0.0.1", apiPattern: "/api", results: [] } as unknown as RunResult;
+    await expect(writeReport(dir, run)).rejects.toBe(original);
+    expect(await readdir(dir)).toEqual([]);
+  });
+  it.each(["ENOTDIR", "EACCES", "EEXIST", "ENOSPC"])("reports preflight %s as a typed, path-free failure with its cause", async (code) => {
+    const dir = await temp();
+    const original = Object.assign(new Error(`synthetic private path: ${dir}`), { code, path: dir });
+    fault.preflightError = original;
+    const run = { id: "20261028T120000000Z-1234abcd", startedAt: "2026-10-28T12:00:00.000Z", durationMs: 0, application: "http://127.0.0.1", apiPattern: "/api", results: [] } as unknown as RunResult;
+    const outcome = writeReport(dir, run);
+    await expect(outcome).rejects.toBeInstanceOf(EvidenceIssue);
+    await expect(outcome).rejects.toMatchObject({ code: "EVIDENCE_WRITE", stage: "report-preflight", reason: code, message: `report-preflight: ${code}`, cause: original });
+    const error: unknown = await outcome.catch((error: unknown) => error);
+    expect(JSON.stringify(error)).not.toContain(dir);
+    expect(JSON.stringify(error)).not.toContain("synthetic private path");
+    expect(await readdir(dir)).toEqual([]);
+  });
+  it("rejects unexpected preflight errors and retains the original cause", async () => {
+    const dir = await temp();
+    const original = new TypeError("synthetic programming error");
+    fault.preflightError = original;
+    const run = { id: "20261028T120000000Z-1234abcd", startedAt: "2026-10-28T12:00:00.000Z", durationMs: 0, application: "http://127.0.0.1", apiPattern: "/api", results: [] } as unknown as RunResult;
+    const outcome = writeReport(dir, run);
+    await expect(outcome).rejects.toBeInstanceOf(EvidenceIssue);
+    await expect(outcome).rejects.toMatchObject({ code: "EVIDENCE_WRITE", stage: "report-preflight", reason: "UNKNOWN", cause: original });
+    expect(await readdir(dir)).toEqual([]);
+  });
   it("returns a stable timeout when a filesystem operation never settles", async () => {
     const dir = await temp(); fault.mkdirNever = true; vi.useFakeTimers();
     const outcome = writeExclusiveFile(path.join(dir, "shot.png"), Buffer.from("x"), { timeoutMs: 100, cleanupMs: 20 }).catch((error: unknown) => error);

@@ -68,14 +68,22 @@ describe("evidence persistence", () => {
     await expect(writeReport(dir, circular as unknown as RunResult)).rejects.toThrow("report-serialize: SERIALIZATION_FAILED");
     expect(await readdir(dir)).toEqual([]);
   });
-  it("does not overwrite a historical report and rejects an invalid report directory", async () => {
-    const dir = await temp(); const existing = path.join(dir, "report.md");
+  it.each(["report.md", "results.json"])("does not overwrite historical %s and rejects an invalid report directory", async (filename) => {
+    const dir = await temp(); const existing = path.join(dir, filename);
     await writeFile(existing, "history");
     const run = { id: "20261028T120000000Z-1234abcd", startedAt: "2026-10-28T12:00:00.000Z", durationMs: 0, application: "http://127.0.0.1", apiPattern: "/api", results: [] } as unknown as RunResult;
-    await expect(writeReport(dir, run)).rejects.toThrow("EEXIST");
+    const collision = writeReport(dir, run);
+    await expect(collision).rejects.toBeInstanceOf(EvidenceIssue);
+    await expect(collision).rejects.toMatchObject({ code: "EVIDENCE_WRITE", stage: "report-preflight", reason: "EEXIST" });
     expect(await readFile(existing, "utf8")).toBe("history");
+    expect(await readdir(dir)).toEqual([filename]);
     const invalid = path.join(dir, "parent"); await writeFile(invalid, "file");
-    await expect(writeReport(path.join(invalid, "nested"), run)).rejects.toBeInstanceOf(EvidenceIssue);
+    const rejected = writeReport(path.join(invalid, "nested"), run);
+    await expect(rejected).rejects.toBeInstanceOf(EvidenceIssue);
+    // Windows may defer ENOTDIR until mkdir; Linux reports it during preflight lstat.
+    await expect(rejected).rejects.toMatchObject({ code: "EVIDENCE_WRITE", reason: "ENOTDIR", cause: { code: "ENOTDIR" } });
     expect(await readFile(invalid, "utf8")).toBe("file");
+    expect(await readFile(existing, "utf8")).toBe("history");
+    expect((await readdir(dir)).sort()).toEqual([filename, "parent"].sort());
   });
 });

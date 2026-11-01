@@ -10,8 +10,8 @@ export const REPORT_PENDING_FILE = ".faultlane-report-pending";
 // Never include filesystem paths or arbitrary browser exception text in reports.
 export class EvidenceIssue extends Error {
   readonly code: "EVIDENCE_TIMEOUT" | "EVIDENCE_UNSUPPORTED" | "EVIDENCE_WRITE" | "REPORT_SERIALIZATION";
-  constructor(public readonly stage: string, public readonly reason: string) {
-    super(`${stage}: ${reason}`);
+  constructor(public readonly stage: string, public readonly reason: string, options?: ErrorOptions) {
+    super(`${stage}: ${reason}`, options);
     this.code = reason.startsWith("TIMEOUT") ? "EVIDENCE_TIMEOUT" : reason.startsWith("HARDLINK_UNSUPPORTED") ? "EVIDENCE_UNSUPPORTED" : stage === "report-serialize" ? "REPORT_SERIALIZATION" : "EVIDENCE_WRITE";
   }
 }
@@ -83,8 +83,8 @@ export async function writeExclusiveFile(filename: string, data: Buffer, options
     await step("publish", () => link(temporary, filename), () => { published = true; });
   } catch (error) {
     const reason = evidenceReason(error);
-    if (stage === "publish" && /^(ENOTSUP|EOPNOTSUPP|ENOSYS|EXDEV)$/.test(reason)) failure = new EvidenceIssue(stage, `HARDLINK_UNSUPPORTED (${reason})`);
-    else failure = error instanceof EvidenceIssue ? error : new EvidenceIssue(stage, reason);
+    if (stage === "publish" && /^(ENOTSUP|EOPNOTSUPP|ENOSYS|EXDEV)$/.test(reason)) failure = new EvidenceIssue(stage, `HARDLINK_UNSUPPORTED (${reason})`, { cause: error });
+    else failure = error instanceof EvidenceIssue ? error : new EvidenceIssue(stage, reason, { cause: error });
   }
 
   // The last operation may still be in flight after timeout. Do not close its handle
@@ -111,7 +111,7 @@ export async function writeExclusiveFile(filename: string, data: Buffer, options
   try { await withEvidenceDeadline("cleanup", () => cleanup, cleanupMs); }
   catch (error) {
     const reason = `${error instanceof EvidenceIssue ? `[${error.code}] ` : ""}${evidenceReason(error)}`;
-    failure = failure ? new EvidenceIssue(failure.stage, `${failure.reason}; ${reason}`) : error instanceof EvidenceIssue ? error : new EvidenceIssue("cleanup", reason);
+    failure = failure ? new EvidenceIssue(failure.stage, `${failure.reason}; ${reason}`, { cause: failure }) : error instanceof EvidenceIssue ? error : new EvidenceIssue("cleanup", reason, { cause: error });
   }
   if (failure) throw failure;
 }

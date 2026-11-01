@@ -11,7 +11,12 @@ export async function publishReportFiles(directory: string, names: { markdown: s
     try {
       await withEvidenceDeadline("report-preflight", () => lstat(path.join(directory, filename)), options.timeoutMs ?? EVIDENCE_IO_DEADLINE_MS);
       throw new EvidenceIssue("report-preflight", "EEXIST");
-    } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    } catch (error) {
+      // Only absence permits publication. An invalid parent can fail here on
+      // Linux (ENOTDIR) or later in mkdir on Windows; both are evidence errors.
+      if ((error as NodeJS.ErrnoException | null)?.code === "ENOENT") continue;
+      throw error instanceof EvidenceIssue ? error : new EvidenceIssue("report-preflight", evidenceReason(error), { cause: error });
+    }
   }
   const marker = path.join(directory, REPORT_PENDING_FILE);
   await writeExclusiveFile(marker, Buffer.from("Report publication is incomplete.\n"), options);
@@ -22,7 +27,7 @@ export async function publishReportFiles(directory: string, names: { markdown: s
     // Both files are already saved and verified. A late marker removal only
     // delays visibility; it cannot turn an unsuccessful report write into PASS.
     if (error instanceof EvidenceIssue && error.reason === "TIMEOUT") return { status: "SAVED", visibility: "PENDING", warning: "REPORT_VISIBILITY_TIMEOUT" };
-    throw new EvidenceIssue("report-visibility", evidenceReason(error));
+    throw new EvidenceIssue("report-visibility", evidenceReason(error), { cause: error });
   }
   return { status: "SAVED", visibility: "READY" };
 }
